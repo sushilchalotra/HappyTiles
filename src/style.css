@@ -1,0 +1,378 @@
+/* ============================================================================
+   HappyTiles — candy / playful theme
+   Mobile-first. System font stack only (no webfonts). WCAG AA contrast.
+   Min touch target 48x48 CSS px. Honors prefers-reduced-motion.
+   ============================================================================ */
+
+:root {
+  /* Candy palette */
+  --pink:        #ff5fa2;
+  --pink-deep:   #e23e87;   /* AA with white text */
+  --teal:        #21d4c4;
+  --teal-deep:   #0f9d94;   /* AA with white text */
+  --yellow:      #ffd23f;
+  --orange:      #ff8a3d;
+  --purple:      #8a5cf6;
+  --purple-deep: #6c3ce0;   /* AA with white text */
+
+  --ink:         #2b2138;   /* primary text — high contrast on light bg */
+  --ink-soft:    #5a4d6b;
+  --card:        #ffffff;
+  --line:        #e7def0;
+
+  --radius:      18px;
+  --radius-lg:   26px;
+  --shadow:      0 8px 22px rgba(108, 60, 224, 0.18);
+  --shadow-sm:   0 3px 10px rgba(108, 60, 224, 0.14);
+  --tap:         48px;      /* minimum touch target */
+
+  --bg-grad: linear-gradient(160deg, #fdf3ff 0%, #eafcff 55%, #fff7e8 100%);
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute is only a low-priority UA rule, so any author `display`
+   (e.g. .win-overlay { display:grid }) would override it. Force it to win. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg-grad);
+  background-attachment: fixed;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* respect notches */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Clear, consistent visible focus for keyboard users */
+:focus-visible {
+  outline: 4px solid var(--purple-deep);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ----------------------------------- Header ----------------------------------- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 8px;
+  min-height: var(--tap);
+  border-radius: 14px;
+  color: var(--ink);
+}
+.brand-mark { font-size: 1.7rem; line-height: 1; }
+.brand-name { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.2px; }
+.brand-name-accent { color: var(--purple-deep); }
+
+.icon-btn {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: none;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: transform 0.12s ease;
+}
+.icon-btn:active { transform: scale(0.92); }
+
+/* Sound toggle shows one of two glyphs depending on state */
+.sound-btn .sound-off { display: none; }
+.sound-btn.is-muted .sound-on { display: none; }
+.sound-btn.is-muted .sound-off { display: inline; }
+
+/* ----------------------------------- Views ----------------------------------- */
+#main {
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 16px 28px;
+}
+.view { display: none; }
+.view.is-active { display: block; animation: viewIn 0.25s ease both; }
+
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ----------------------------------- Home ----------------------------------- */
+.home-title {
+  text-align: center;
+  font-size: clamp(1.7rem, 6vw, 2.4rem);
+  margin: 6px 0 18px;
+}
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+}
+.game-card {
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  padding: 18px 14px 20px;
+  color: #fff;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 190px;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+.game-card:hover { transform: translateY(-4px) scale(1.02); }
+.game-card:active { transform: translateY(0) scale(0.98); }
+.card-sudoku { background: linear-gradient(155deg, var(--pink), var(--purple)); }
+.card-puzzle { background: linear-gradient(155deg, var(--teal-deep), var(--purple-deep)); }
+.game-card-art {
+  width: 110px; height: 110px;
+  display: grid; place-items: center;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+}
+.game-card-label { font-size: 1.3rem; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+.home-tagline { text-align: center; color: var(--ink-soft); margin-top: 22px; font-weight: 600; }
+
+/* ----------------------------------- Toolbar ----------------------------------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pill-btn {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.pill-btn:active { transform: scale(0.95); }
+.pill-primary { background: var(--purple-deep); color: #fff; border-color: var(--purple-deep); }
+.pill-btn[aria-pressed="true"] { background: var(--yellow); border-color: var(--orange); color: var(--ink); }
+
+/* Segmented control (grid size) */
+.seg { display: inline-flex; background: var(--card); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-sm); }
+.seg-btn {
+  min-height: 40px;
+  min-width: 52px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.seg-btn[aria-pressed="true"] { background: var(--purple-deep); color: #fff; }
+
+.counter {
+  margin-left: auto;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--yellow);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.status {
+  text-align: center;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin: 16px 4px 0;
+  min-height: 1.4em;
+}
+
+/* ----------------------------------- Boards ----------------------------------- */
+.board-wrap { display: grid; place-items: center; }
+
+/* ---- Sudoku ---- */
+.sudoku-board {
+  --n: 4;            /* set by JS */
+  --box-cols: 2;     /* set by JS */
+  --box-rows: 2;     /* set by JS */
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  gap: 4px;
+  width: min(92vw, 460px);
+  aspect-ratio: 1 / 1;
+  background: var(--purple-deep);
+  padding: 6px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.s-cell {
+  border: none;
+  background: var(--card);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: clamp(1.3rem, 7vw, 2.2rem);
+  font-weight: 800;
+  color: var(--ink);
+  padding: 0;
+  position: relative;
+  transition: transform 0.1s ease, background 0.12s ease;
+  min-width: 0;
+}
+.s-cell svg { width: 64%; height: 64%; }
+.s-cell:active { transform: scale(0.94); }
+.s-cell.is-given { background: #efe9fb; color: var(--purple-deep); cursor: default; }
+.s-cell.is-selected { background: #fff4c2; box-shadow: inset 0 0 0 3px var(--orange); }
+.s-cell.is-conflict { background: #ffdfe8; box-shadow: inset 0 0 0 3px var(--pink-deep); }
+.s-cell.pop { animation: pop 0.2s ease; }
+
+/* Thicker gridlines between Sudoku boxes, drawn with extra margins */
+.s-cell.box-right  { margin-right: 4px; }
+.s-cell.box-bottom { margin-bottom: 4px; }
+
+@keyframes pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* Symbol palette */
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.pal-btn {
+  width: var(--tap);
+  height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease;
+}
+.pal-btn svg { width: 60%; height: 60%; }
+.pal-btn:active { transform: scale(0.9); }
+.pal-btn.is-active { box-shadow: inset 0 0 0 3px var(--purple-deep); background: #f3eeff; }
+.pal-erase { font-size: 1.4rem; }
+
+/* ---- Sliding puzzle ---- */
+.puzzle-board {
+  --n: 3;
+  position: relative;
+  width: min(92vw, 440px);
+  aspect-ratio: 1 / 1;
+  background: var(--teal-deep);
+  border-radius: var(--radius);
+  padding: 0;            /* tiles are absolutely positioned; GAP in JS forms the frame */
+  box-shadow: var(--shadow);
+}
+.p-tile {
+  position: absolute;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  background-size: cover;
+  background-repeat: no-repeat;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+  transition: left 0.16s ease, top 0.16s ease, transform 0.1s ease;
+  display: grid;
+  place-items: center;
+}
+.p-tile:active { transform: scale(0.97); }
+.p-tile.is-blank { background: transparent; box-shadow: none; cursor: default; pointer-events: none; }
+.p-tile .p-num {
+  font-size: clamp(1.3rem, 7vw, 2.1rem);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.55), 0 0 2px rgba(0,0,0,0.6);
+  background: rgba(108, 60, 224, 0.55);
+  border-radius: 10px;
+  min-width: 1.9em;
+  text-align: center;
+  padding: 2px 6px;
+}
+.puzzle-board.hide-numbers .p-num { display: none; }
+.p-tile.solved-flash { animation: flash 0.5s ease; }
+@keyframes flash { 50% { filter: brightness(1.5); } }
+
+/* ----------------------------------- Win overlay ----------------------------------- */
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(43, 33, 56, 0.55);
+  backdrop-filter: blur(2px);
+}
+.confetti-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.win-card {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 28px 26px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  max-width: 88vw;
+  width: 340px;
+  animation: bounceIn 0.4s ease both;
+}
+@keyframes bounceIn {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.win-emoji { font-size: 3.4rem; }
+.win-title { margin: 6px 0 4px; font-size: 1.9rem; }
+.win-sub { margin: 0 0 18px; color: var(--ink-soft); font-weight: 600; }
+.win-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+/* ----------------------------------- Reduced motion ----------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .game-card:hover { transform: none; }
+}

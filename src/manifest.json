@@ -1,0 +1,27 @@
+{
+  "name": "HappyTiles — Fun Games for Kids",
+  "short_name": "HappyTiles",
+  "description": "Ad-free, offline kids' games: Shape Sudoku and a sliding picture puzzle. No ads, no trackers, no internet needed after first load.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fdf3ff",
+  "theme_color": "#8a5cf6",
+  "lang": "en",
+  "categories": ["games", "education", "kids"],
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

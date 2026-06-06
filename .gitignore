@@ -1,0 +1,14 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Local dev / test debug artifacts (screenshots, throwaway browser profiles, etc.)
+tests/_*
+**/_chrome_profile*/
+*.log
+
+# In case tooling is added later
+node_modules/

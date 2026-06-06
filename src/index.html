@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Mobile-first: lock to device width, allow user zoom for accessibility -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="HappyTiles — ad-free, offline kids' games: Sudoku and a sliding picture puzzle. No ads, no trackers." />
+  <meta name="theme-color" content="#8a5cf6" />
+  <title>HappyTiles — Fun Games for Kids</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <!-- SVG favicon (inline-friendly, scales crisply, no network) -->
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/icon.svg" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- ============================= APP HEADER ============================= -->
+  <header class="app-header">
+    <button class="brand" id="brand-home" type="button" aria-label="Go to HappyTiles home">
+      <span class="brand-mark" aria-hidden="true">🧩</span>
+      <span class="brand-name">Happy<span class="brand-name-accent">Tiles</span></span>
+    </button>
+    <button class="icon-btn sound-btn" id="sound-toggle" type="button" aria-pressed="false" aria-label="Sound on">
+      <span class="sound-on" aria-hidden="true">🔊</span>
+      <span class="sound-off" aria-hidden="true">🔇</span>
+    </button>
+  </header>
+
+  <main id="main">
+    <!-- ============================= HOME VIEW ============================= -->
+    <section id="view-home" class="view is-active" aria-label="Choose a game">
+      <h1 class="home-title">Pick a game!</h1>
+      <div class="game-grid">
+        <button class="game-card card-sudoku" data-go="sudoku" type="button">
+          <span class="game-card-art" aria-hidden="true">
+            <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-hidden="true">
+              <rect x="8" y="8" width="84" height="84" rx="14" fill="#fff" opacity="0.92"/>
+              <g stroke="#8a5cf6" stroke-width="3" opacity="0.55">
+                <line x1="8" y1="50" x2="92" y2="50"/><line x1="50" y1="8" x2="50" y2="92"/>
+              </g>
+              <circle cx="29" cy="29" r="9" fill="#ff5fa2"/>
+              <polygon points="71,20 80,38 62,38" fill="#21d4c4"/>
+              <rect x="20" y="62" width="18" height="18" rx="4" fill="#ffd23f"/>
+              <polygon points="71,61 75,71 86,71 77,78 80,89 71,82 62,89 65,78 56,71 67,71" fill="#8a5cf6"/>
+            </svg>
+          </span>
+          <span class="game-card-label">Shape Sudoku</span>
+        </button>
+
+        <button class="game-card card-puzzle" data-go="puzzle" type="button">
+          <span class="game-card-art" aria-hidden="true">
+            <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-hidden="true">
+              <rect x="8" y="8" width="84" height="84" rx="14" fill="#fff" opacity="0.92"/>
+              <g fill="none" stroke="#21d4c4" stroke-width="3" opacity="0.5">
+                <line x1="36" y1="10" x2="36" y2="90"/><line x1="64" y1="10" x2="64" y2="90"/>
+                <line x1="10" y1="36" x2="90" y2="36"/><line x1="10" y1="64" x2="90" y2="64"/>
+              </g>
+              <rect x="13" y="13" width="20" height="20" rx="5" fill="#ff5fa2"/>
+              <rect x="41" y="13" width="20" height="20" rx="5" fill="#ffd23f"/>
+              <rect x="13" y="41" width="20" height="20" rx="5" fill="#8a5cf6"/>
+              <rect x="69" y="41" width="20" height="20" rx="5" fill="#21d4c4"/>
+              <rect x="41" y="69" width="20" height="20" rx="5" fill="#ff8a3d"/>
+            </svg>
+          </span>
+          <span class="game-card-label">Slide Puzzle</span>
+        </button>
+      </div>
+      <p class="home-tagline">No ads. No internet needed. Just fun! ✨</p>
+    </section>
+
+    <!-- ============================= SUDOKU VIEW ============================= -->
+    <section id="view-sudoku" class="view" aria-label="Sudoku game" hidden>
+      <div class="toolbar">
+        <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
+        <div class="seg" role="group" aria-label="Grid size">
+          <button class="seg-btn" id="size-4" type="button" aria-pressed="true">4×4</button>
+          <button class="seg-btn" id="size-6" type="button" aria-pressed="false">6×6</button>
+          <button class="seg-btn" id="size-9" type="button" aria-pressed="false">9×9</button>
+        </div>
+        <button class="pill-btn" id="sudoku-symbol-toggle" type="button" aria-label="Switch to numbers">
+          <span aria-hidden="true">🔢</span> Numbers
+        </button>
+        <button class="pill-btn" id="sudoku-undo" type="button">
+          <span aria-hidden="true">↩️</span> Undo
+        </button>
+        <button class="pill-btn pill-primary" id="sudoku-new" type="button">
+          <span aria-hidden="true">🎲</span> New
+        </button>
+      </div>
+
+      <div class="board-wrap">
+        <div id="sudoku-board" class="sudoku-board" role="grid" aria-label="Sudoku board"></div>
+      </div>
+
+      <div id="sudoku-palette" class="palette" role="group" aria-label="Pick a symbol to place"></div>
+
+      <p id="sudoku-status" class="status" role="status" aria-live="polite">Tap a square, then pick a symbol.</p>
+    </section>
+
+    <!-- ============================= PUZZLE VIEW ============================= -->
+    <section id="view-puzzle" class="view" aria-label="Sliding puzzle game" hidden>
+      <div class="toolbar">
+        <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
+        <button class="pill-btn" id="puzzle-pic" type="button">
+          <span aria-hidden="true">🖼️</span> Picture
+        </button>
+        <button class="pill-btn" id="puzzle-numbers" type="button" aria-pressed="true">
+          <span aria-hidden="true">🔢</span> Numbers
+        </button>
+        <span class="counter" id="puzzle-moves" aria-live="polite">Moves: 0</span>
+        <button class="pill-btn pill-primary" id="puzzle-shuffle" type="button">
+          <span aria-hidden="true">🎲</span> New
+        </button>
+      </div>
+
+      <div class="board-wrap">
+        <div id="puzzle-board" class="puzzle-board" role="group" aria-label="Sliding puzzle. Use arrow keys or tap a tile next to the gap."></div>
+      </div>
+
+      <p id="puzzle-status" class="status" role="status" aria-live="polite">Press New to start!</p>
+    </section>
+  </main>
+
+  <!-- ============================= WIN OVERLAY ============================= -->
+  <div id="win-overlay" class="win-overlay" hidden>
+    <canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+    <div class="win-card" role="alertdialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="win-emoji" aria-hidden="true">🎉</div>
+      <h2 id="win-title" class="win-title">You did it!</h2>
+      <p class="win-sub" id="win-sub">Great job! 🌟</p>
+      <div class="win-actions">
+        <button class="pill-btn pill-primary" id="win-again" type="button"><span aria-hidden="true">🔁</span> Play again</button>
+        <button class="pill-btn" id="win-home" type="button"><span aria-hidden="true">🏠</span> Home</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= CONFIRM DIALOG ============================= -->
+  <div id="confirm-overlay" class="win-overlay" hidden>
+    <div class="win-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-sub">
+      <div class="win-emoji" aria-hidden="true">🤔</div>
+      <h2 id="confirm-title" class="win-title">Start a new game?</h2>
+      <p class="win-sub" id="confirm-sub">Your current progress will be lost.</p>
+      <div class="win-actions">
+        <button class="pill-btn pill-primary" id="confirm-yes" type="button">Yes</button>
+        <button class="pill-btn" id="confirm-no" type="button">Keep playing</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./games-core.js" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>

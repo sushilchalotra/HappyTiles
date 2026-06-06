@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HappyTiles — Smoke Tests</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #2b2138; }
+    h1 { font-size: 1.5rem; }
+    .summary { font-size: 1.2rem; font-weight: 800; padding: 12px 16px; border-radius: 12px; margin: 16px 0; }
+    .summary.ok { background: #d8f7e4; color: #0c6b39; }
+    .summary.bad { background: #ffdfe8; color: #a01243; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; font-size: 0.95rem; }
+    li.pass { background: #eefcf3; }
+    li.fail { background: #ffe1ea; }
+    .tag { font-weight: 800; margin-right: 8px; }
+    .pass .tag { color: #0c6b39; }
+    .fail .tag { color: #a01243; }
+    .msg { color: #a01243; display: block; margin-left: 2.4em; }
+  </style>
+</head>
+<body>
+  <h1>🧪 HappyTiles smoke tests</h1>
+  <p>Runs the same DOM-free game-logic suite used by Node and cscript, right here in your browser.</p>
+  <div id="summary" class="summary">Running…</div>
+  <ul id="list"></ul>
+
+  <script src="../src/games-core.js"></script>
+  <script src="./smoke-tests.js"></script>
+  <script>
+    (function () {
+      var res = runHappyTests(window.HappyCore);
+      var summary = document.getElementById('summary');
+      var list = document.getElementById('list');
+      summary.className = 'summary ' + (res.failed ? 'bad' : 'ok');
+      summary.textContent = res.passed + ' passed, ' + res.failed + ' failed, ' + res.total + ' total';
+      for (var i = 0; i < res.results.length; i++) {
+        var r = res.results[i];
+        var li = document.createElement('li');
+        li.className = r.ok ? 'pass' : 'fail';
+        li.innerHTML = '<span class="tag">' + (r.ok ? 'PASS' : 'FAIL') + '</span>' + r.name +
+          (r.ok ? '' : '<span class="msg">' + r.message + '</span>');
+        list.appendChild(li);
+      }
+    })();
+  </script>
+</body>
+</html>
