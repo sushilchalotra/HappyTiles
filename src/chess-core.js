@@ -461,8 +461,11 @@ var ChessCore = (function () {
      ============================================================================ */
   // Mini-game: { piece, start (alg), coins ([alg]) }  → board built by the UI.
   // Puzzle:    { fen, hint? }  → success = the player's move gives checkmate.
+  // Each unit is tagged with the `skill` the evaluation test probes; passing that
+  // skill credits the unit as "known" and recommends starting at the first one she
+  // hasn't shown yet. Puzzle lessons carry a `goal` checked by assessMove().
   var CHESS_UNITS = [
-    { id: 'pieces', title: 'Meet the Pieces', emoji: '♟', lessons: [
+    { id: 'pieces', skill: 'pieces', title: 'Meet the Pieces', emoji: '♟', lessons: [
       { id: 'rook',   title: 'The Rook',   type: 'piece', piece: 'R', tip: 'The rook moves in straight lines — up, down, left, right.',
         start: 'a1', coins: ['a5', 'd5', 'd1', 'h1'] },
       { id: 'bishop', title: 'The Bishop', type: 'piece', piece: 'B', tip: 'The bishop slides on diagonals and stays on one color.',
@@ -476,24 +479,88 @@ var ChessCore = (function () {
       { id: 'pawn',   title: 'The Pawn',   type: 'promote', piece: 'P', tip: 'Pawns step forward and capture diagonally. Reach the end to promote!',
         fen: '8/3P4/8/8/8/8/8/8 w - - 0 1', goalRank: 8 }
     ] },
-    { id: 'capture', title: 'Capturing & Value', emoji: '⚔', lessons: [
+    { id: 'capture', skill: 'capture', title: 'Capturing & Value', emoji: '⚔', lessons: [
       { id: 'values', title: 'Piece Points', type: 'info', tip: 'Pawn 1 · Knight 3 · Bishop 3 · Rook 5 · Queen 9. Win pieces, win the game!' },
-      { id: 'grab',   title: 'Win the Queen', type: 'piece', piece: 'N', tip: 'Hop with the knight to grab every coin!',
+      { id: 'grab',   title: 'Knight Snacks', type: 'piece', piece: 'N', tip: 'Hop with the knight to grab every gem!',
         start: 'g1', coins: ['f3', 'e5', 'd7', 'c5', 'e4'] }
     ] },
-    { id: 'mate', title: 'Check & Checkmate', emoji: '♚', lessons: [
+    { id: 'mate', skill: 'mate1', title: 'Check & Checkmate', emoji: '♚', lessons: [
       { id: 'what-check', title: 'What is Check?', type: 'info', tip: 'Check means the king is under attack. You MUST get out of check right away.' },
-      { id: 'm1', title: 'Mate in One #1', type: 'puzzle', tip: 'Trap the king on the back row.', fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
-      { id: 'm2', title: 'Mate in One #2', type: 'puzzle', tip: 'Use your king to support the queen.', fen: '6k1/3Q4/6K1/8/8/8/8/8 w - - 0 1' },
-      { id: 'm3', title: 'Mate in One #3', type: 'puzzle', tip: 'Two rooks make a ladder — one guards the row in front.', fen: '6k1/1R6/8/8/8/8/8/R5K1 w - - 0 1' },
-      { id: 'm4', title: 'Mate in One #4', type: 'puzzle', tip: 'Bring the queen right up close.', fen: '7k/8/6KQ/8/8/8/8/8 w - - 0 1' }
+      { id: 'm1', title: 'Mate in One #1', type: 'puzzle', goal: 'mate1', tip: 'Trap the king on the back row.', fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
+      { id: 'm2', title: 'Mate in One #2', type: 'puzzle', goal: 'mate1', tip: 'Use your king to support the queen.', fen: '6k1/3Q4/6K1/8/8/8/8/8 w - - 0 1' },
+      { id: 'm3', title: 'Mate in One #3', type: 'puzzle', goal: 'mate1', tip: 'Two rooks make a ladder — one guards the row in front.', fen: '6k1/1R6/8/8/8/8/8/R5K1 w - - 0 1' },
+      { id: 'm4', title: 'Mate in One #4', type: 'puzzle', goal: 'mate1', tip: 'Bring the queen right up close.', fen: '7k/8/6KQ/8/8/8/8/8 w - - 0 1' }
     ] },
-    { id: 'play', title: 'Play a Game', emoji: '♞', lessons: [
+    { id: 'tactics', skill: 'tactics', title: 'Tactics', emoji: '⚡', lessons: [
+      { id: 'hang',    title: 'Win a Free Piece', type: 'puzzle', goal: 'free', tip: 'A piece with no defender is FREE — grab it!', fen: 'k7/8/8/4n3/8/8/1B6/K7 w - - 0 1', solutions: ['b2e5'] },
+      { id: 'fork',    title: 'Knight Fork', type: 'puzzle', goal: 'fork', tip: 'A knight can attack two pieces at once. Fork the king and queen!', fen: '2q3k1/8/8/3N4/8/8/8/4K3 w - - 0 1', solutions: ['d5e7'] },
+      { id: 'winrook', title: 'Win the Rook', type: 'puzzle', goal: 'free', tip: 'The rook is undefended — take it!', fen: '7k/8/8/8/3r4/8/3Q4/K7 w - - 0 1', solutions: ['d2d4'] }
+    ] },
+    { id: 'endgame', skill: 'endgame', title: 'Endgames', emoji: '👑', lessons: [
+      { id: 'promote2', title: 'Promote to Win', type: 'promote', piece: 'P', goalRank: 8, tip: 'Push the pawn to the last rank to make a new Queen!', fen: '8/2P5/8/8/8/8/7k/K7 w - - 0 1' },
+      { id: 'qmate',    title: 'Queen Checkmate', type: 'puzzle', goal: 'mate1', tip: 'Use your king and queen together to checkmate.', fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1' },
+      { id: 'backrank', title: 'Back-Rank Mate', type: 'puzzle', goal: 'mate1', tip: 'The rook delivers mate on the back row.', fen: '6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1' }
+    ] },
+    { id: 'play', skill: 'play', title: 'Play a Game', emoji: '♞', lessons: [
       { id: 'bot1', title: 'Friendly Bot', type: 'play', botLevel: 1, tip: 'Develop your pieces, castle, and look for free captures!' },
       { id: 'bot2', title: 'Clever Bot',   type: 'play', botLevel: 2, tip: 'Protect your pieces and watch for the bot’s threats.' },
       { id: 'bot3', title: 'Sharp Bot',    type: 'play', botLevel: 3, tip: 'Think before you move. Can you find a checkmate?' }
     ] }
   ];
+
+  // The evaluation test: a short, increasing-difficulty set of board puzzles that
+  // probe each skill. Pass per item -> credited skill (see applyChessPlacement).
+  var CHESS_PLACEMENT = [
+    { skill: 'capture', goal: 'free',  prompt: 'Win a free piece!',            fen: '7k/8/8/3n4/8/8/3R4/K7 w - - 0 1', solutions: ['d2d5'] },
+    { skill: 'check',   goal: 'solve', prompt: 'You’re in check — get safe!',  fen: '6kr/8/8/8/8/8/8/7K w - - 0 1', solutions: ['h1g1', 'h1g2'] },
+    { skill: 'mate1',   goal: 'mate1', prompt: 'Checkmate in one!',            fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
+    { skill: 'mate1',   goal: 'mate1', prompt: 'Find the checkmate!',          fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1' },
+    { skill: 'tactics', goal: 'free',  prompt: 'Win a piece!',                 fen: 'k7/8/8/4n3/8/8/1B6/K7 w - - 0 1', solutions: ['b2e5'] },
+    { skill: 'tactics', goal: 'fork',  prompt: 'Fork the king and queen!',     fen: '2q3k1/8/8/3N4/8/8/8/4K3 w - - 0 1', solutions: ['d5e7'] },
+    { skill: 'endgame', goal: 'mate1', prompt: 'Finish the game — checkmate!', fen: '6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1' }
+  ];
+
+  // Did `move` solve `item`? mate1 → it's checkmate; promote → a pawn reached the
+  // last rank; otherwise it must be one of the listed solution moves.
+  function assessMove(state, item, move) {
+    if (item.goal === 'mate1') { return moveGivesMate(state, move); }
+    if (item.goal === 'promote') {
+      return typeOf(move.piece) === 'P' && rankOf(move.to) === (colorOf(move.piece) === W ? 7 : 0);
+    }
+    if (item.solutions) {
+      var key = algFromSq(move.from) + algFromSq(move.to);
+      for (var i = 0; i < item.solutions.length; i++) { if (item.solutions[i] === key) { return true; } }
+    }
+    return false;
+  }
+
+  // Turn evaluation results into a personalized plan. `p` is a per-skill pass map
+  // { capture, check, mate1, tactics, endgame }. Returns the lessons she already
+  // knows (pre-starred), the furthest unlocked lesson, and where to start.
+  function applyChessPlacement(p) {
+    p = p || {};
+    var anyApplied = !!(p.capture || p.check || p.mate1 || p.tactics || p.endgame);
+    var known = {
+      pieces: anyApplied,                 // solving any applied puzzle proves she can move
+      capture: !!p.capture,
+      mate: !!(p.mate1 || p.check),
+      tactics: !!p.tactics,
+      endgame: !!p.endgame,
+      play: false                          // always leave "Play a Game" as the open frontier
+    };
+    var stars = {}, idx = 0, recommend = 0, recommendSet = false, knownUnits = [], u, l;
+    for (u = 0; u < CHESS_UNITS.length; u++) {
+      var unit = CHESS_UNITS[u], first = idx;
+      if (!recommendSet && known[unit.id]) {
+        knownUnits.push(unit.id);
+        for (l = 0; l < unit.lessons.length; l++) { stars[unit.lessons[l].id] = 2; idx++; }
+      } else {
+        if (!recommendSet) { recommend = first; recommendSet = true; }
+        idx += unit.lessons.length;
+      }
+    }
+    return { stars: stars, unlocked: recommend, recommend: recommend, knownUnits: knownUnits };
+  }
 
   /* ------------------------------ exports ------------------------------ */
   return {
@@ -507,7 +574,8 @@ var ChessCore = (function () {
     perft: perft, gameStatus: gameStatus, insufficientMaterial: insufficientMaterial,
     moveGivesMate: moveGivesMate, findMove: findMove,
     evaluate: evaluate, bestMove: bestMove,
-    CHESS_UNITS: CHESS_UNITS
+    CHESS_UNITS: CHESS_UNITS, CHESS_PLACEMENT: CHESS_PLACEMENT,
+    assessMove: assessMove, applyChessPlacement: applyChessPlacement
   };
 })();
 

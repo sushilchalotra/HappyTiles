@@ -67,12 +67,17 @@ covered by the shared smoke suite.
 
 ## Roadmap
 
-- **Phase 1 (MVP, this build)**: engine (perft-tested) + bot; Academy path; Meet-the-Pieces
+- **Phase 1 (MVP)** ✅ done: engine (perft-tested) + bot; Academy path; Meet-the-Pieces
   mini-games; Check/Checkmate mate-in-one puzzles; Play vs leveled bot; stars/progression;
-  offline; home tile. *She can learn the pieces and play a real game.*
-- **Phase 2**: castling/en-passant lesson, tactics trainer (fork/pin/skewer puzzle sets),
-  basic endgame mates (guided K+Q, K+R), opening principles, promotion picker, hints,
-  take-back, optional coordinates/notation, stronger bot scaling.
+  offline; home tile.
+- **Phase 2 (adaptive + content)** ✅ done: an **evaluation test** that builds a
+  personalized plan (`CHESS_PLACEMENT` + `applyChessPlacement`), a **Tactics** unit
+  (hanging piece, knight fork, win the rook), an **Endgames** unit (promote, queen mate,
+  back-rank mate), a goal-aware puzzle runner (`assessMove`), **Hints**, a "Start here"
+  badge, and "Re-check my level". 22 lessons; all puzzles test-verified.
+- **Phase 3 (next)**: promotion picker (Q/R/B/N), take-back/undo in games, more tactics
+  (pin, skewer, discovered attack), guided long mates (K+Q, K+R walked step-by-step),
+  opening-principles lessons, optional coordinates/notation, and finer bot scaling.
 - **Phase 3**: a "puzzle of the day", simple game review, and (optional, off-hot-path)
   AI-generated coaching tips for parents — never in the move loop.
 

@@ -636,9 +636,20 @@ body {
 }
 .chess-node:active { transform: scale(0.98); }
 .chess-node.is-locked { background: #f1edf7; opacity: 0.7; cursor: default; box-shadow: none; }
+.chess-node.is-rec { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,138,61,0.35); }
 .chess-node-ic { font-size: 1.7rem; width: 1.6em; text-align: center; }
 .chess-node-t { flex: 1; font-weight: 800; color: var(--ink); }
 .chess-node-s { font-size: 0.95rem; letter-spacing: 1px; white-space: nowrap; }
+.chess-here { display: inline-block; margin-left: 8px; font-size: 0.7rem; font-weight: 800; color: #fff; background: var(--orange); border-radius: 999px; padding: 2px 8px; vertical-align: middle; }
+.chess-retake { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.chess-retake .pill-btn { font-size: 0.85rem; padding: 0 12px; min-height: 38px; }
+
+/* Evaluation results */
+.chess-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px 0 14px; }
+.chess-badge { background: #d8f7e4; color: #0c6b39; font-weight: 800; border-radius: 999px; padding: 6px 14px; font-size: 0.9rem; }
+
+/* Hint highlight */
+.sq.hint { box-shadow: inset 0 0 0 4px var(--teal-deep); }
 
 /* Lesson view */
 .chess-lesson { width: min(94vw, 460px); }

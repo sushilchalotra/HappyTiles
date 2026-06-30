@@ -187,6 +187,32 @@
   Verified: **52/52** smoke tests (incl. perft + every puzzle/mini-game) and headless drive
   of a mini-game (3★), a mate-in-one, and a live game vs the bot — zero JS errors.
 
+### 2026-06-30 — Chess Academy: an adaptive evaluation test + Tactics/Endgames
+- **Decision**: Replace the fixed beginner-only path with an **adaptive level check**.
+  A short set of board puzzles (`CHESS_PLACEMENT`, pure data) probes each skill
+  (capture, check, mate-in-one, tactics, endgame); `applyChessPlacement` turns the
+  results into a **personalized plan** — it pre-credits the units she already shows,
+  unlocks up to her level, and recommends a "Start here" lesson. Added real content
+  above the basics: a **Tactics** unit (hanging piece, knight fork, win the rook) and
+  an **Endgames** unit (promote, queen mate, back-rank mate). The puzzle runner is now
+  goal-aware (`assessMove`: mate1 / free / fork / solve / promote) with a **Hint**
+  button, and the path shows a "Start here" badge + a "Re-check my level" option.
+- **Context**: Feedback that the original lessons were too basic — the kid already knows
+  how the pieces move, so dropping her into "this is a rook" was demotivating. She needed
+  to be *placed* (like Math Quest) and given somewhere to grow.
+- **Alternatives considered**: (a) *Just let her skip lessons manually* — rejected; a
+  guided plan is friendlier and teaches her where her gaps are. (b) *Auto-grade tactics by
+  engine search* (is this objectively the best move?) — rejected as overkill/brittle for a
+  kid; instead each shipped puzzle carries verified solution moves, and tests prove every
+  "free" capture is truly undefended and every "fork" gives check + hits a big piece. (c)
+  *Long adaptive test* — kept it short (~7 puzzles) so it stays fun.
+- **Consequences**: `ht_chess_placed` flag added; placement pre-stars known lessons. New
+  pure functions are unit-tested (every placement item and tactics/endgame puzzle is
+  validated; the planner is checked for beginner/expert/mid cases). SW cache **v11**.
+  Verified headless: the test runs to a personalized plan, the fork solves with a hint,
+  zero JS errors. A real bug was caught in the process (lesson-flatten dropped goal/
+  solutions, breaking puzzles) and fixed.
+
 ### 2026-06-06 — ES3-safe, runtime-agnostic smoke tests
 - **Decision**: Write one shared suite (`tests/smoke-tests.js`) that runs unchanged under Node, the browser, and Windows `cscript`/JScript. Keep `games-core.js` and the suite ES3-safe (no template literals, arrows, `Array.from`, `forEach`, `Object.keys`, `Array.prototype.indexOf`).
 - **Context**: This dev machine has only Microsoft Store *stub* Python/Node (non-functional); the only working JS engine present is the built-in Windows Script Host (`cscript`), which is ES3-era.

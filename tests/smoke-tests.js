@@ -506,7 +506,7 @@ var runHappyTests = (function () {
         for (u = 0; u < units.length; u++) {
           for (k = 0; k < units[u].lessons.length; k++) {
             l = units[u].lessons[k];
-            if (l.type !== 'puzzle') { continue; }
+            if (l.type !== 'puzzle' || l.goal !== 'mate1') { continue; }
             var st = C.parseFEN(l.fen);
             var moves = C.legalMoves(st), mate = false;
             for (j = 0; j < moves.length; j++) { if (C.moveGivesMate(st, moves[j])) { mate = true; break; } }
@@ -528,6 +528,83 @@ var runHappyTests = (function () {
             }
           }
         }
+      });
+
+      // Validate one challenge (placement item or puzzle lesson) is solvable AND its
+      // tagged goal is genuinely achieved by a solution.
+      // After a move, does `mover` attack any enemy big piece (knight+)? Used to
+      // confirm a fork really hits a second valuable target (the king check is
+      // asserted separately). Uses isSquareAttacked so it's turn-independent.
+      function moverAttacksBigPiece(st, mover) {
+        var b = st.board, i, p;
+        for (i = 0; i < 128; i++) {
+          if (i & 0x88) { continue; }
+          p = b[i];
+          if (p == null || C.colorOf(p) === mover || C.typeOf(p) === 'K') { continue; }
+          if (C.VALUE[C.typeOf(p)] >= C.VALUE.N && C.isSquareAttacked(b, i, mover)) { return true; }
+        }
+        return false;
+      }
+      function validateChallenge(item, label) {
+        var st = C.parseFEN(item.fen);
+        var moves = C.legalMoves(st), j;
+        if (item.goal === 'mate1') {
+          var any = false;
+          for (j = 0; j < moves.length; j++) { if (C.moveGivesMate(st, moves[j])) { any = true; break; } }
+          assert(any, label + ': has a mate in one');
+          return;
+        }
+        if (item.goal === 'promote') {
+          var canPromo = false;
+          for (j = 0; j < moves.length; j++) { if (C.typeOf(moves[j].piece) === 'P' && C.rankOf(moves[j].to) === (item.goalRank - 1)) { canPromo = true; break; } }
+          assert(canPromo, label + ': a pawn can reach the last rank');
+          return;
+        }
+        // solution-based goals
+        assert(item.solutions && item.solutions.length, label + ': has solutions');
+        for (var s = 0; s < item.solutions.length; s++) {
+          var fromSq = C.sqFromAlg(item.solutions[s].slice(0, 2)), toSq = C.sqFromAlg(item.solutions[s].slice(2, 4));
+          var m = C.findMove(moves, fromSq, toSq);
+          assert(m, label + ': solution ' + item.solutions[s] + ' is legal');
+          if (item.goal === 'free') {
+            assert(m.captured, label + ': it captures something');
+            var undo = C.makeMove(st, m);
+            assert(!C.isSquareAttacked(st.board, toSq, st.turn), label + ': captured square is undefended (free)');
+            C.unmakeMove(st, m, undo);
+          } else if (item.goal === 'fork') {
+            var undo2 = C.makeMove(st, m);
+            assert(C.isInCheck(st, st.turn), label + ': the fork gives check');
+            assert(moverAttacksBigPiece(st, C.opp(st.turn)), label + ': it also attacks a big piece');
+            C.unmakeMove(st, m, undo2);
+          }
+        }
+      }
+
+      test('chess: every evaluation item is valid and achieves its goal', function () {
+        for (var i = 0; i < C.CHESS_PLACEMENT.length; i++) { validateChallenge(C.CHESS_PLACEMENT[i], 'placement#' + i); }
+      });
+
+      test('chess: every tactics/endgame puzzle lesson is valid', function () {
+        var u, k, l;
+        for (u = 0; u < C.CHESS_UNITS.length; u++) {
+          for (k = 0; k < C.CHESS_UNITS[u].lessons.length; k++) {
+            l = C.CHESS_UNITS[u].lessons[k];
+            if (l.type === 'puzzle' && l.goal) { validateChallenge(l, l.id); }
+            if (l.type === 'promote') { validateChallenge({ goal: 'promote', fen: l.fen, goalRank: l.goalRank }, l.id); }
+          }
+        }
+      });
+
+      test('chess: placement plan unlocks the right starting point', function () {
+        var none = C.applyChessPlacement({});
+        assertEq(none.recommend, 0, 'a true beginner starts at the very first lesson');
+        var strong = C.applyChessPlacement({ capture: true, check: true, mate1: true, tactics: true, endgame: true });
+        var totalBefore = 0, u;
+        for (u = 0; u < C.CHESS_UNITS.length; u++) { if (C.CHESS_UNITS[u].id === 'play') { break; } totalBefore += C.CHESS_UNITS[u].lessons.length; }
+        assertEq(strong.recommend, totalBefore, 'an expert is sent straight to Play a Game');
+        var mid = C.applyChessPlacement({ capture: true, mate1: true });
+        assert(mid.recommend > 0, 'a mid kid skips the basics');
+        assert(mid.stars && mid.knownUnits.length >= 1, 'known units are pre-credited');
       });
 
       test('chess: the bot returns a legal move and grabs a hanging queen', function () {
