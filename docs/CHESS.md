@@ -71,13 +71,16 @@ covered by the shared smoke suite.
   mini-games; Check/Checkmate mate-in-one puzzles; Play vs leveled bot; stars/progression;
   offline; home tile.
 - **Phase 2 (adaptive + content)** ✅ done: an **evaluation test** that builds a
-  personalized plan (`CHESS_PLACEMENT` + `applyChessPlacement`), a **Tactics** unit
-  (hanging piece, knight fork, win the rook), an **Endgames** unit (promote, queen mate,
-  back-rank mate), a goal-aware puzzle runner (`assessMove`), **Hints**, a "Start here"
-  badge, and "Re-check my level". 22 lessons; all puzzles test-verified.
+  personalized plan (`CHESS_PLACEMENT` + `applyChessPlacement`), an **Opening Moves** unit
+  (principles + interactive "take the center / develop a knight / castle your king"), a
+  **Tactics** unit (hanging piece, knight fork, win the rook), an **Endgames** unit
+  (promote, queen mate, back-rank mate), a goal-aware puzzle runner (`assessMove`),
+  **Hints**, a "Start here" badge, and "Re-check my level". **26 lessons**; all puzzles
+  test-verified. Curriculum order: Pieces → Capturing → **Openings** → Checkmate →
+  Tactics → Endgames → Play.
 - **Phase 3 (next)**: promotion picker (Q/R/B/N), take-back/undo in games, more tactics
   (pin, skewer, discovered attack), guided long mates (K+Q, K+R walked step-by-step),
-  opening-principles lessons, optional coordinates/notation, and finer bot scaling.
+  optional coordinates/notation, and finer bot scaling.
 - **Phase 3**: a "puzzle of the day", simple game review, and (optional, off-hot-path)
   AI-generated coaching tips for parents — never in the move loop.
 

@@ -484,6 +484,12 @@ var ChessCore = (function () {
       { id: 'grab',   title: 'Knight Snacks', type: 'piece', piece: 'N', tip: 'Hop with the knight to grab every gem!',
         start: 'g1', coins: ['f3', 'e5', 'd7', 'c5', 'e4'] }
     ] },
+    { id: 'opening', skill: 'opening', title: 'Opening Moves', emoji: '🚀', lessons: [
+      { id: 'principles', title: 'Opening Tips', type: 'info', tip: 'Start strong! 1) Grab the CENTER. 2) Develop your knights and bishops. 3) Castle to keep your king safe. 4) Don’t bring your queen out too early!' },
+      { id: 'center',  title: 'Take the Center', type: 'puzzle', goal: 'solve', tip: 'Put a pawn in the middle — in front of your king or queen.', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', solutions: ['e2e4', 'd2d4'] },
+      { id: 'develop', title: 'Develop a Knight', type: 'puzzle', goal: 'solve', tip: 'Bring a knight out toward the center.', fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', solutions: ['g1f3', 'b1c3'] },
+      { id: 'castle',  title: 'Castle Your King', type: 'puzzle', goal: 'solve', tip: 'Tuck your king safely into the corner — castle!', fen: 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4', solutions: ['e1g1'] }
+    ] },
     { id: 'mate', skill: 'mate1', title: 'Check & Checkmate', emoji: '♚', lessons: [
       { id: 'what-check', title: 'What is Check?', type: 'info', tip: 'Check means the king is under attack. You MUST get out of check right away.' },
       { id: 'm1', title: 'Mate in One #1', type: 'puzzle', goal: 'mate1', tip: 'Trap the king on the back row.', fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
@@ -512,6 +518,7 @@ var ChessCore = (function () {
   // probe each skill. Pass per item -> credited skill (see applyChessPlacement).
   var CHESS_PLACEMENT = [
     { skill: 'capture', goal: 'free',  prompt: 'Win a free piece!',            fen: '7k/8/8/3n4/8/8/3R4/K7 w - - 0 1', solutions: ['d2d5'] },
+    { skill: 'opening', goal: 'solve', prompt: 'Play a strong first move!',    fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', solutions: ['e2e4', 'd2d4'] },
     { skill: 'check',   goal: 'solve', prompt: 'You’re in check — get safe!',  fen: '6kr/8/8/8/8/8/8/7K w - - 0 1', solutions: ['h1g1', 'h1g2'] },
     { skill: 'mate1',   goal: 'mate1', prompt: 'Checkmate in one!',            fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
     { skill: 'mate1',   goal: 'mate1', prompt: 'Find the checkmate!',          fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1' },
@@ -539,10 +546,11 @@ var ChessCore = (function () {
   // knows (pre-starred), the furthest unlocked lesson, and where to start.
   function applyChessPlacement(p) {
     p = p || {};
-    var anyApplied = !!(p.capture || p.check || p.mate1 || p.tactics || p.endgame);
+    var anyApplied = !!(p.capture || p.opening || p.check || p.mate1 || p.tactics || p.endgame);
     var known = {
       pieces: anyApplied,                 // solving any applied puzzle proves she can move
       capture: !!p.capture,
+      opening: !!p.opening,
       mate: !!(p.mate1 || p.check),
       tactics: !!p.tactics,
       endgame: !!p.endgame,

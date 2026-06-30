@@ -1534,7 +1534,7 @@
 
     function renderEvalResults(plan) {
       const rec = LESSONS[plan.recommend];
-      const titles = { pieces: 'Piece Moves', capture: 'Capturing', mate: 'Checkmates', tactics: 'Tactics', endgame: 'Endgames' };
+      const titles = { pieces: 'Piece Moves', capture: 'Capturing', opening: 'Openings', mate: 'Checkmates', tactics: 'Tactics', endgame: 'Endgames' };
       let badges = '';
       for (let i = 0; i < plan.knownUnits.length; i++) { badges += '<span class="chess-badge">✅ ' + (titles[plan.knownUnits[i]] || plan.knownUnits[i]) + '</span>'; }
       if (!badges) { badges = '<span class="chess-badge">🌱 We’ll start from the very beginning!</span>'; }

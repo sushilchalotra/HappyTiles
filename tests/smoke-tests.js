@@ -598,7 +598,7 @@ var runHappyTests = (function () {
       test('chess: placement plan unlocks the right starting point', function () {
         var none = C.applyChessPlacement({});
         assertEq(none.recommend, 0, 'a true beginner starts at the very first lesson');
-        var strong = C.applyChessPlacement({ capture: true, check: true, mate1: true, tactics: true, endgame: true });
+        var strong = C.applyChessPlacement({ capture: true, opening: true, check: true, mate1: true, tactics: true, endgame: true });
         var totalBefore = 0, u;
         for (u = 0; u < C.CHESS_UNITS.length; u++) { if (C.CHESS_UNITS[u].id === 'play') { break; } totalBefore += C.CHESS_UNITS[u].lessons.length; }
         assertEq(strong.recommend, totalBefore, 'an expert is sent straight to Play a Game');
