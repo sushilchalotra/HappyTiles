@@ -30,7 +30,8 @@ HappyTiles/
 │  ├─ ARCHITECTURE.md         # This file
 │  ├─ DECISIONS.md            # Decision log
 │  ├─ MATH-QUEST.md           # Math Quest plan/northstar/roadmap
-│  └─ CHESS.md                # Chess Academy plan/northstar/curriculum
+│  ├─ CHESS.md                # Chess Academy plan/northstar/curriculum
+│  └─ ROADMAP.md              # Suite-wide backlog: what's done & what's pending
 ├─ src/                       # The entire app (deploy THIS folder)
 │  ├─ index.html              # App shell: header, home, sudoku view, puzzle view, win overlay
 │  ├─ style.css               # Candy theme, responsive, a11y, reduced-motion

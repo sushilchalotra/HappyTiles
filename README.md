@@ -37,7 +37,8 @@ HappyTiles/
 │  ├─ ARCHITECTURE.md
 │  ├─ DECISIONS.md
 │  ├─ MATH-QUEST.md      ← Math Quest plan, northstar & roadmap
-│  └─ CHESS.md           ← Chess Academy plan, northstar & curriculum
+│  ├─ CHESS.md           ← Chess Academy plan, northstar & curriculum
+│  └─ ROADMAP.md         ← suite-wide backlog: done & pending
 ├─ serve.mjs            ← zero-dep Node dev server (node serve.mjs)
 ├─ .github/workflows/deploy.yml   ← optional one-click GitHub Pages deploy
 └─ README.md
