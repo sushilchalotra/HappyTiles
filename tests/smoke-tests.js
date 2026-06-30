@@ -8,7 +8,7 @@
 var runHappyTests = (function () {
   'use strict';
 
-  function run(Core) {
+  function run(Core, M) {
     var results = [];
 
     function record(name, ok, message) {
@@ -187,6 +187,279 @@ var runHappyTests = (function () {
       move(5); move(8);
       assert(Core.puzzleIsSolved(b), 'reversed back to solved');
     });
+
+    /* ======================== LEVELS & SCORING ======================== */
+
+    test('sudoku: new puzzle honors an explicit hole override', function () {
+      for (var s = 1; s <= 20; s++) {
+        var p = Core.sudokuNewPuzzle(6, Core.makeRng(8800 + s), 14);
+        assertEq(countZeros(p.grid), 14, 'digs exactly the override count');
+        assert(!gridHasConflict(p.grid, p.n, p.boxRows, p.boxCols), 'clues still valid');
+      }
+    });
+
+    test('sudoku: every level config is generatable and solvable', function () {
+      for (var L = 0; L < Core.SUDOKU_LEVELS.length; L++) {
+        var lvl = Core.SUDOKU_LEVELS[L];
+        var p = Core.sudokuNewPuzzle(lvl.size, Core.makeRng(2200 + L), lvl.holes);
+        assertEq(countZeros(p.grid), lvl.holes, 'level ' + (L + 1) + ' hole count');
+        var work = p.grid.slice();
+        assert(Core.sudokuSolve(work, p.n, p.boxRows, p.boxCols, 0, Core.makeRng(1)),
+               'level ' + (L + 1) + ' is solvable');
+      }
+    });
+
+    test('sudoku: star rating maps mistakes to 3/2/1', function () {
+      assertEq(Core.sudokuStars(0), 3, 'no mistakes = 3 stars');
+      assertEq(Core.sudokuStars(2), 2, 'a few mistakes = 2 stars');
+      assertEq(Core.sudokuStars(9), 1, 'many mistakes = 1 star');
+    });
+
+    test('puzzle: every level shuffles to a solvable, unsolved board', function () {
+      for (var L = 0; L < Core.PUZZLE_LEVELS.length; L++) {
+        var lvl = Core.PUZZLE_LEVELS[L];
+        var b = Core.puzzleShuffle(lvl.size, lvl.steps, Core.makeRng(5500 + L));
+        assert(!Core.puzzleIsSolved(b), 'level ' + (L + 1) + ' not pre-solved');
+        assert(Core.puzzleIsSolvable(b, lvl.size), 'level ' + (L + 1) + ' is solvable');
+        assertEq(b.length, lvl.size * lvl.size, 'level ' + (L + 1) + ' tile count');
+      }
+    });
+
+    test('puzzle: star rating maps moves-vs-par to 3/2/1', function () {
+      assertEq(Core.puzzleStars(30, 30), 3, 'at par = 3 stars');
+      assertEq(Core.puzzleStars(45, 30), 2, 'a bit over par = 2 stars');
+      assertEq(Core.puzzleStars(200, 30), 1, 'way over par = 1 star');
+    });
+
+    /* ===================== MATH QUEST (adaptive engine) ===================== */
+    // Guarded so the legacy single-arg runners still work; the three runners in
+    // this folder pass MathCore as the 2nd arg.
+    if (M) {
+      var ST = M.STAGE;
+
+      test('math: builds 45 unique facts, canonical and with correct products', function () {
+        var facts = M.buildFacts();
+        assertEq(facts.length, 45, 'unique fact count');
+        var seen = {};
+        for (var i = 0; i < facts.length; i++) {
+          var f = facts[i];
+          assert(f.a <= f.b, 'canonical a<=b for ' + f.id);
+          assertEq(f.p, f.a * f.b, 'product for ' + f.id);
+          assert(f.a >= 2 && f.b <= 10, 'factors within 2..10 for ' + f.id);
+          assert(!seen[f.id], 'no duplicate ' + f.id);
+          seen[f.id] = true;
+        }
+      });
+
+      test('math: teach order covers all 45 facts and starts at the 2-table', function () {
+        var order = M.teachOrder();
+        assertEq(order.length, 45, 'teach order length');
+        assertEq(order[0], '2x2', 'anchors (×2) come first');
+        var facts = M.buildFacts();
+        for (var i = 0; i < order.length; i++) {
+          assert(M.findFact(facts, order[i]) !== null, 'order id exists: ' + order[i]);
+        }
+      });
+
+      test('math: grade promotes new→learning→reviewing→fluent on fast correct answers', function () {
+        var f = M.findFact(M.buildFacts(), '6x7');
+        var now = 1000000;
+        M.grade(f, true, 1000, now); assertEq(f.stage, ST.LEARNING, 'first correct → learning');
+        M.grade(f, true, 1000, now); assertEq(f.stage, ST.REVIEWING, 'streak 2 → reviewing');
+        M.grade(f, true, 1000, now); assertEq(f.stage, ST.FLUENT, 'streak 3 + fast → fluent');
+      });
+
+      test('math: a fact answered correctly but SLOW never reaches fluent', function () {
+        var f = M.findFact(M.buildFacts(), '6x8');
+        for (var i = 0; i < 6; i++) { M.grade(f, true, 5000, 1000000); }
+        assertEq(f.stage, ST.REVIEWING, 'slow-but-correct stays reviewing');
+      });
+
+      test('math: a wrong answer resets streak/box and demotes the stage', function () {
+        var f = M.findFact(M.buildFacts(), '7x8');
+        var now = 1000000;
+        M.grade(f, true, 1000, now); M.grade(f, true, 1000, now); M.grade(f, true, 1000, now);
+        assertEq(f.stage, ST.FLUENT, 'set up fluent');
+        var info = M.grade(f, false, 2000, now);
+        assertEq(f.stage, ST.REVIEWING, 'fluent demotes to reviewing on a miss');
+        assertEq(f.streak, 0, 'streak reset');
+        assertEq(f.box, 0, 'box reset to 0');
+        assertEq(info.correct, false, 'info reports incorrect');
+      });
+
+      test('math: review intervals grow with the Leitner box', function () {
+        assert(M.intervalMs(0) < M.intervalMs(1), 'box 0 < box 1');
+        assert(M.intervalMs(1) < M.intervalMs(3), 'box 1 < box 3');
+      });
+
+      test('math: grading schedules the next due time from the new box', function () {
+        var f = M.findFact(M.buildFacts(), '2x3');
+        M.grade(f, true, 1000, 5000);
+        assertEq(f.box, 1, 'box advanced to 1');
+        assertEq(f.dueAt, 5000 + M.intervalMs(1), 'dueAt = now + interval(box)');
+      });
+
+      test('math: selectNext returns null when nothing has been started', function () {
+        var fresh = M.buildFacts();   // all NEW
+        assertEq(M.selectNext(fresh, { mode: 'mixed', now: 0, rng: M.makeRng(1) }), null, 'no startable facts');
+      });
+
+      test('math: selectNext favors the weak, overdue fact over a strong, not-due one', function () {
+        var fs = M.buildFacts();
+        var weak = M.findFact(fs, '7x8'); weak.stage = ST.LEARNING; weak.dueAt = 0; weak.streak = 0;
+        var strong = M.findFact(fs, '2x4'); strong.stage = ST.REVIEWING; strong.dueAt = 9000000; strong.streak = 3;
+        var now = 1000000, hits = 0;
+        for (var s = 1; s <= 60; s++) {
+          var p = M.selectNext(fs, { mode: 'mixed', now: now, rng: M.makeRng(s) });
+          assert(p && p.stage >= ST.LEARNING, 'never returns a NEW fact');
+          if (p.id === weak.id) { hits++; }
+        }
+        assert(hits >= 40, 'weak/overdue fact dominates selection (' + hits + '/60)');
+      });
+
+      test('math: speed mode only serves fluent facts when enough exist', function () {
+        var fs = M.buildFacts();
+        var ids = ['2x2', '2x3', '2x4', '2x5', '2x6'];
+        for (var i = 0; i < ids.length; i++) { var f = M.findFact(fs, ids[i]); f.stage = ST.FLUENT; f.dueAt = 0; }
+        var p = M.selectNext(fs, { mode: 'speed', now: 1000, rng: M.makeRng(3) });
+        assert(p && p.stage === ST.FLUENT, 'speed serves a fluent fact');
+      });
+
+      test('math: multiplication questions are well-formed', function () {
+        var f = M.findFact(M.buildFacts(), '6x7'); f.stage = ST.REVIEWING;   // → number-pad
+        var q = M.makeQuestion(f, { rng: M.makeRng(2), allowDivision: false });
+        assertEq(q.op, 'mul', 'multiplication op');
+        assertEq(q.answer, 42, 'answer is the product');
+        assertEq(q.x * q.y, 42, 'operands multiply to the product');
+        assertEq(q.inputMode, 'pad', 'reviewing fact types the answer');
+      });
+
+      test('math: division questions are the true inverse of a fact', function () {
+        var f = M.findFact(M.buildFacts(), '6x7'); f.stage = ST.REVIEWING;
+        var found = false;
+        for (var s = 1; s < 50 && !found; s++) {
+          var q = M.makeQuestion(f, { rng: M.makeRng(s), allowDivision: true });
+          if (q.op === 'div') {
+            found = true;
+            assertEq(q.x, 42, 'dividend is the product');
+            assert(q.answer * q.y === 42, 'quotient × divisor = product');
+            assert(q.y === f.a || q.y === f.b, 'divides by one of the factors');
+          }
+        }
+        assert(found, 'produced at least one division question');
+      });
+
+      test('math: multiple-choice options are 4 distinct positives incl. the answer', function () {
+        var c = M.findFact(M.buildFacts(), '3x4');   // NEW → choice mode
+        var q = M.makeQuestion(c, { rng: M.makeRng(5), allowDivision: false });
+        assertEq(q.inputMode, 'choice', 'new fact uses multiple choice');
+        assertEq(q.choices.length, 4, 'four options');
+        assert(idxOf(q.choices, q.answer) !== -1, 'the answer is one of the options');
+        for (var i = 0; i < q.choices.length; i++) {
+          assert(q.choices[i] > 0, 'option is positive');
+          for (var j = i + 1; j < q.choices.length; j++) { assert(q.choices[i] !== q.choices[j], 'options distinct'); }
+        }
+      });
+
+      test('math: input mode is choice while learning, number-pad once fluent', function () {
+        var f = M.findFact(M.buildFacts(), '8x9');
+        f.stage = ST.NEW;      assertEq(M.pickInputMode(f), 'choice', 'new → choice');
+        f.stage = ST.LEARNING; assertEq(M.pickInputMode(f), 'choice', 'learning → choice');
+        f.stage = ST.REVIEWING;assertEq(M.pickInputMode(f), 'pad', 'reviewing → pad');
+        f.stage = ST.FLUENT;   assertEq(M.pickInputMode(f), 'pad', 'fluent → pad');
+      });
+
+      test('math: placement seeds strong tables high and unknown tables as new', function () {
+        var fs = M.buildFacts();
+        var results = [
+          { a: 5, b: 3, correct: true,  ms: 1000 }, { a: 5, b: 8, correct: true,  ms: 1000 },
+          { a: 7, b: 4, correct: false, ms: 8000 }, { a: 7, b: 9, correct: false, ms: 8000 }
+        ];
+        M.applyPlacement(fs, results, 1000);
+        assertEq(M.findFact(fs, '5x5').stage, ST.FLUENT, 'fast+correct ×5 table → fluent');
+        assertEq(M.findFact(fs, '7x7').stage, ST.NEW, 'all-wrong ×7 table → new');
+        assertEq(M.findFact(fs, '5x7').stage, ST.FLUENT, 'fact takes the stronger of its two tables');
+      });
+
+      test('math: pickNewFact follows the teach order and respects the learning cap', function () {
+        var fs = M.buildFacts();
+        var first = M.pickNewFact(fs);
+        assert(first && first.id === M.teachOrder()[0], 'introduces the first teach-order fact');
+        var order = M.teachOrder();
+        for (var i = 0; i < M.LEARNING_CAP; i++) { M.findFact(fs, order[i]).stage = ST.LEARNING; }
+        assertEq(M.pickNewFact(fs), null, 'no new fact while the learning edge is full');
+      });
+
+      test('math: worlds partition all 45 facts with no overlap', function () {
+        var ws = M.worlds(M.buildFacts());
+        assertEq(ws.length, 9, 'one world per table (×2..×10)');
+        var sum = 0;
+        for (var i = 0; i < ws.length; i++) { sum += ws[i].total; }
+        assertEq(sum, 45, 'world totals sum to all facts');
+        assertEq(ws[0].label, '×2', 'first world is the ×2 table');
+      });
+
+      test('math: fact ownership goes to the earlier teaching-order table', function () {
+        assertEq(M.worldOf('2x7'), 2, '2×7 belongs to the ×2 world');
+        assertEq(M.worldOf('7x8'), 7, '7×8 belongs to the ×7 world (7 before 8)');
+        assertEq(M.worldOf('8x8'), 8, '8×8 belongs to the ×8 world');
+      });
+
+      test('math: a world reads complete only when all its facts are fluent', function () {
+        var fs = M.buildFacts();
+        var owned = M.worldFacts(fs, 2);
+        for (var i = 0; i < owned.length; i++) { owned[i].stage = ST.FLUENT; }
+        var ws = M.worlds(fs);
+        var w2 = null;
+        for (i = 0; i < ws.length; i++) { if (ws[i].factor === 2) { w2 = ws[i]; } }
+        assertEq(w2.mastered, w2.total, 'all owned facts mastered');
+        assert(w2.complete, '×2 world complete');
+      });
+
+      test('math: a world is boss-ready when all its facts are reviewing but not fluent', function () {
+        var fs = M.buildFacts();
+        var owned = M.worldFacts(fs, 8);   // smallest world (just 8×8)
+        for (var i = 0; i < owned.length; i++) { owned[i].stage = ST.REVIEWING; }
+        var ws = M.worlds(fs), w8 = null;
+        for (i = 0; i < ws.length; i++) { if (ws[i].factor === 8) { w8 = ws[i]; } }
+        assert(w8.bossReady, '×8 world is boss-ready');
+        assert(!w8.complete, 'not yet complete');
+      });
+
+      test('math: selectNext can be restricted to a world via opts.ids', function () {
+        var fs = M.buildFacts();
+        var owned = M.worldFacts(fs, 8);
+        var ids = [];
+        for (var i = 0; i < fs.length; i++) { fs[i].stage = ST.REVIEWING; }   // everything eligible
+        for (i = 0; i < owned.length; i++) { ids.push(owned[i].id); }
+        for (var s = 1; s <= 20; s++) {
+          var p = M.selectNext(fs, { mode: 'mixed', now: 1000, rng: M.makeRng(s), ids: ids });
+          assert(p && M.worldOf(p.id) === 8, 'only serves ×8 world facts');
+        }
+      });
+
+      test('math: insights surface the slowest known facts and the focus facts', function () {
+        var fs = M.buildFacts();
+        var slowFact = M.findFact(fs, '7x8'); slowFact.stage = ST.REVIEWING; slowFact.avgMs = 6000; slowFact.streak = 2;
+        var fastFact = M.findFact(fs, '2x2'); fastFact.stage = ST.FLUENT; fastFact.avgMs = 1200; fastFact.streak = 5;
+        var learn = M.findFact(fs, '6x7'); learn.stage = ST.LEARNING; learn.seen = 2;
+        var ins = M.insights(fs, 5);
+        assertEq(ins.slowest[0].id, '7x8', 'slowest known fact ranked first');
+        var inFocus = false;
+        for (var i = 0; i < ins.focus.length; i++) { if (ins.focus[i].id === '6x7') { inFocus = true; } }
+        assert(inFocus, 'a learning fact shows up in focus');
+      });
+
+      test('math: summary counts stages and session stars map to 3/2/1', function () {
+        var s = M.summary(M.buildFacts(), 0);
+        assertEq(s.total, 45, 'total facts');
+        assertEq(s.newCount, 45, 'all start new');
+        assertEq(s.fluent, 0, 'none fluent yet');
+        assertEq(M.sessionStars(10, 10), 3, '100% = 3 stars');
+        assertEq(M.sessionStars(7, 10), 2, '70% = 2 stars');
+        assertEq(M.sessionStars(3, 10), 1, '30% = 1 star');
+      });
+    }
 
     /* ----------------------------- summary ----------------------------- */
     var passed = 0, failed = 0;

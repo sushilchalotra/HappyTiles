@@ -4,9 +4,10 @@
 'use strict';
 var path = require('path');
 var Core = require(path.join(__dirname, '..', 'src', 'games-core.js'));
+var MathCore = require(path.join(__dirname, '..', 'src', 'math-core.js'));
 var runHappyTests = require(path.join(__dirname, 'smoke-tests.js'));
 
-var res = runHappyTests(Core);
+var res = runHappyTests(Core, MathCore);
 
 for (var i = 0; i < res.results.length; i++) {
   var r = res.results[i];

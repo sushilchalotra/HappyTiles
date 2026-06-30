@@ -27,10 +27,11 @@
   <ul id="list"></ul>
 
   <script src="../src/games-core.js"></script>
+  <script src="../src/math-core.js"></script>
   <script src="./smoke-tests.js"></script>
   <script>
     (function () {
-      var res = runHappyTests(window.HappyCore);
+      var res = runHappyTests(window.HappyCore, window.MathCore);
       var summary = document.getElementById('summary');
       var list = document.getElementById('list');
       summary.className = 'summary ' + (res.failed ? 'bad' : 'ok');

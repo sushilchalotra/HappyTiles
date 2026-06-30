@@ -2,8 +2,10 @@
 
 Ad-free, offline-friendly **Progressive Web App** of simple games for kids:
 
-- **Shape Sudoku** — kid-friendly 4×4 (and 6×6) with colorful shapes or numbers, instant error checking, undo, and a new-puzzle button.
-- **Slide Puzzle** — a 3×3 sliding-tile puzzle with built-in pictures, an optional number overlay, shuffle, and a move counter.
+- **Shape Sudoku** — kid-friendly puzzles with colorful shapes or numbers, instant error checking, and undo. A **9-level ladder** climbs 4×4 → 6×6 → 9×9.
+- **Slide Puzzle** — sliding-tile puzzles with built-in pictures and an optional number overlay. A **5-level ladder** grows 3×3 → 4×4 → 5×5.
+- **Math Quest** — an adaptive **times-tables & division** trainer. It finds your level, then teaches new facts and builds speed using spaced repetition (correct *and* fast = mastered), with a growing **World Map**, **Boss Battles**, and a grown-ups **progress dashboard**. Fully offline — no AI in the loop. See `docs/MATH-QUEST.md`.
+- **Levels & stars** — win to earn 1–3 ⭐ (based on care, not speed) and unlock the next level. Your star total and progress show on the home screen. Fast solves earn a bonus **⚡ Speedy!** — with no stressful on-screen clock.
 
 **Built for kids and parents who care about privacy:**
 
@@ -23,13 +25,17 @@ HappyTiles/
 ├─ src/                  ← the entire app lives here (deploy this folder)
 │  ├─ index.html
 │  ├─ style.css
+│  ├─ games-core.js      ← pure Sudoku/Puzzle logic (DOM-free, testable)
+│  ├─ math-core.js       ← pure adaptive math engine (DOM-free, testable)
 │  ├─ app.js
 │  ├─ manifest.json
 │  ├─ sw.js              ← service worker (offline cache)
 │  └─ icons/icon.svg
 ├─ docs/
 │  ├─ ARCHITECTURE.md
-│  └─ DECISIONS.md
+│  ├─ DECISIONS.md
+│  └─ MATH-QUEST.md      ← Math Quest plan, northstar & roadmap
+├─ serve.mjs            ← zero-dep Node dev server (node serve.mjs)
 ├─ .github/workflows/deploy.yml   ← optional one-click GitHub Pages deploy
 └─ README.md
 ```
@@ -41,7 +47,15 @@ HappyTiles/
 A service worker needs to be served over `http://` (not opened as a `file://` path),
 so use any tiny static server. Pick whichever tool you already have:
 
-### Option A — Python 3
+### Option A — Node (recommended, zero install)
+```bash
+node serve.mjs            # serves ./src at http://localhost:8080
+node serve.mjs 8090       # ...or any other port
+```
+It also prints a **Network** URL (e.g. `http://192.168.x.x:8080`) you can open on a
+phone or iPad on the same Wi-Fi.
+
+### Option B — Python 3
 ```bash
 cd src
 python -m http.server 8000
@@ -51,14 +65,14 @@ Then open <http://localhost:8000>
 > On Windows the `python` command may open the Microsoft Store. If so, install Python
 > from <https://python.org> (tick "Add to PATH"), or use one of the options below.
 
-### Option B — Node.js
+### Option C — Node (npx)
 ```bash
 cd src
 npx serve .          # or:  npx http-server -p 8000
 ```
 Then open the URL it prints.
 
-### Option C — VS Code
+### Option D — VS Code
 Install the **Live Server** extension, right-click `src/index.html` → **Open with Live Server**.
 
 To install as an app, use your browser's **Install / Add to Home Screen** option.
@@ -148,14 +162,20 @@ node tests/run-node.js
 cscript //nologo tests\run-cscript.js
 ```
 
-All three report the same result. Current status: **13 passed, 0 failed.** The suite covers:
+All three report the same result. Current status: **43 passed, 0 failed.** The suite covers:
 
-- Sudoku: generated 4×4 / 6×6 solutions are fully valid; puzzles dig exactly the
-  configured number of holes; every dug puzzle is still solvable; conflict detection
-  catches row/column/box duplicates; solved/incomplete detection.
+- Sudoku: generated 4×4 / 6×6 / 9×9 solutions are fully valid; puzzles dig exactly the
+  configured number of holes (incl. per-level overrides); every dug puzzle — and every
+  level config — is still solvable; conflict detection catches row/column/box duplicates;
+  solved/incomplete detection.
 - Puzzle: solved-board shape; neighbor calculation; **shuffles are always solvable and
-  never start pre-solved**; parity check rejects unsolvable boards; a real slide
-  sequence reaches the solved state.
+  never start pre-solved** (every level size, 3×3–5×5); parity check rejects unsolvable
+  boards; a real slide sequence reaches the solved state.
+- Scoring: star ratings map mistakes (Sudoku) and moves-vs-par (Puzzle) to 3/2/1.
+- Math Quest: 45-fact universe + teaching order; mastery promotion needs correct **and**
+  fast, a miss demotes; spaced-repetition scheduling; weighted item selection; question /
+  distractor / division generation; adaptive placement seeding; the nine "worlds"
+  partition + boss-readiness; and the parent-dashboard insights.
 
 Runners exit non-zero on failure, so `node tests/run-node.js` drops straight into CI.
 
@@ -163,8 +183,8 @@ Runners exit non-zero on failure, so `node tests/run-node.js` drops straight int
 
 HappyTiles is designed to be safe for children (COPPA / GDPR friendly): it collects nothing,
 sends nothing, shows no ads, and has no outbound links. The only thing it stores is a few
-**local** preferences (sound on/off, chosen grid size, etc.) in your browser's `localStorage` —
-that never leaves the device.
+**local** preferences and progress (sound on/off, level reached, stars earned, etc.) in your
+browser's `localStorage` — that never leaves the device.
 
 ---
 
@@ -172,8 +192,13 @@ that never leaves the device.
 
 **Sudoku** — Tap an empty square, then tap a shape (or number) below to place it. Each shape can
 appear only once per row, column, and box. Conflicts flash red. Use **Undo** to step back, the
-**🔷/🔢** button to switch shapes/numbers, **4×4 / 6×6** to change size, and **New** for a fresh puzzle.
+**🔷/🔢** button to switch shapes/numbers, **🏆 Level** to pick a level, and **New** for a fresh puzzle.
+Solve it cleanly to earn 3 ⭐ and unlock the next level.
 
 **Slide Puzzle** — Tap a tile next to the empty gap (or use the **arrow keys**) to slide it. Rebuild
-the picture! Use **Picture** to change the image, **Numbers** to show/hide the number hints, and
-**Shuffle** to start over.
+the picture! Use **Picture** to change the image, **Numbers** to show/hide the number hints,
+**🏆 Level** to pick a level, and **New** to start over. Fewer moves earns more stars.
+
+**Levels & stars** — Each game is a ladder of levels. Win to earn 1–3 ⭐ and unlock the next one;
+🔒 levels open as you progress. Careful play always earns full stars — speed only adds a bonus.
+Replay any unlocked level from the **🏆 Level** picker to beat your best.

@@ -23,6 +23,7 @@ local preferences.
 HappyTiles/
 ├─ CLAUDE.md                  # Agent operating instructions (auto-loaded each session)
 ├─ README.md                  # Run + deploy + testing instructions
+├─ serve.mjs                  # Zero-dep Node dev server (node serve.mjs → :8080, LAN-accessible)
 ├─ .github/workflows/
 │  └─ deploy.yml              # Optional GitHub Pages deploy (uploads src/)
 ├─ docs/
@@ -31,8 +32,9 @@ HappyTiles/
 ├─ src/                       # The entire app (deploy THIS folder)
 │  ├─ index.html              # App shell: header, home, sudoku view, puzzle view, win overlay
 │  ├─ style.css               # Candy theme, responsive, a11y, reduced-motion
-│  ├─ games-core.js           # PURE game logic (DOM-free, ES3-safe, testable)
-│  ├─ app.js                  # DOM/UI: nav, audio, confetti, Sudoku & Puzzle controllers
+│  ├─ games-core.js           # PURE Sudoku/Puzzle logic (DOM-free, ES3-safe, testable)
+│  ├─ math-core.js            # PURE adaptive math engine (DOM-free, ES3-safe, testable)
+│  ├─ app.js                  # DOM/UI: nav, audio, confetti, Sudoku/Puzzle/Math controllers
 │  ├─ manifest.json           # PWA manifest
 │  ├─ sw.js                   # Service worker (cache-first; bump CACHE_VERSION per release)
 │  └─ icons/icon.svg          # App / favicon / maskable icon
@@ -47,26 +49,60 @@ HappyTiles/
 
 - **`games-core.js`** exposes a single global/CommonJS object `HappyCore` with pure
   functions only (no DOM, no audio). This is the testable heart of both games:
-  - Sudoku: `sudokuGenerateSolution`, `sudokuNewPuzzle`, `sudokuConflicts`,
-    `sudokuIsComplete`, `sudokuIsSolved`, `sudokuSolve`, `SUDOKU_CONFIG`.
+  - Sudoku: `sudokuGenerateSolution`, `sudokuNewPuzzle` (optional `holes` override),
+    `sudokuConflicts`, `sudokuIsComplete`, `sudokuIsSolved`, `sudokuSolve`, `SUDOKU_CONFIG`.
   - Puzzle: `puzzleSolved`, `puzzleNeighbors`, `puzzleShuffle`, `puzzleIsSolved`,
     `puzzleIsSolvable`, `puzzleInversions`, `puzzleBlankValue`.
+  - Levels & scoring (pure data + math): `SUDOKU_LEVELS`, `PUZZLE_LEVELS`,
+    `sudokuStars(mistakes)`, `puzzleStars(moves, par)`.
   - All randomness flows through an injectable `rng` (see `makeRng(seed)`) so tests
     are deterministic.
+- **`math-core.js`** exposes a single global/CommonJS object `MathCore` — the pure,
+  DOM-free adaptive engine for the **Math Quest** game (times-tables & division
+  fluency). It owns the pedagogy and nothing else (no DOM/audio/storage/LLM):
+  - Facts & teaching: `buildFacts`/`createInitialState` (45 unique facts, ×2–×10 with
+    commutativity folded), `teachOrder`, `pickNewFact`, `strategyFor(a,b)`.
+  - Play loop: `selectNext(facts,{mode,now,rng,excludeId})` (spaced-repetition + weakness
+    weighted item selection), `makeQuestion`, `pickInputMode` (choice vs number-pad by
+    stage), `makeChoices`, `grade(rec,correct,latencyMs,now)` (updates accuracy, speed,
+    streak, Leitner box, mastery stage New→Learning→Reviewing→Fluent, and next-due time).
+  - Placement & progress: `placementProbes`, `applyPlacement`, `summary`, `sessionStars`.
+  - Worlds (meta-progression): `worlds` (per-table progress + complete/boss-ready flags),
+    `worldFacts` (a world's owned facts, for Boss Battles), `worldOf`. `selectNext`
+    accepts `opts.ids` to restrict selection to one world.
+  - Like `games-core.js`: all randomness via injectable `rng`, all "now" passed in as ms,
+    ES3-safe, and covered by the shared smoke-test suite. See `docs/MATH-QUEST.md`.
 - **`app.js`** is the DOM/UI layer. It owns rendering, input, `localStorage`
   preferences, Web Audio sound effects, confetti, and hash-based navigation
   (`#home` / `#sudoku` / `#puzzle`). Its Sudoku and Puzzle controllers call into
-  `HappyCore` for all generation/validation; they keep only view state.
-- **Load order** (in `index.html`): `games-core.js` then `app.js` (both `defer`).
-- **Persistence**: `localStorage` keys `ht_muted`, `ht_sudoku_symbols`,
-  `ht_sudoku_size`, `ht_puzzle_pic`, `ht_puzzle_numbers`. Never leaves the device.
+  `HappyCore` for all generation/validation; they keep only view state. Key modules:
+  - `Scores` — persistent, local-only progression: furthest unlocked level + best-stars
+    map per game; computes totals for the home dashboard; `record()` unlocks the next level.
+  - `LevelPicker` — shared "choose a level" overlay (unlocked levels show best stars,
+    locked show 🔒).
+  - `Win` — win overlay now takes an options object and shows earned stars, an optional
+    "⚡ Speedy!" badge, and a context-aware **Next level** button.
+  - `renderHome()` — fills the home star total and per-card "Level N · x/max ★".
+  - Sudoku/Puzzle controllers are **level-driven**: difficulty comes from the ladder
+    index, not a manual size picker. The Puzzle board size `N` is now variable (3/4/5).
+- **Load order** (in `index.html`): `games-core.js`, then `math-core.js`, then `app.js`
+  (all `defer`).
+- **Persistence**: `localStorage` keys `ht_muted`, `ht_sudoku_symbols`, `ht_puzzle_pic`,
+  `ht_puzzle_numbers`, plus progression keys `ht_sudoku_level`, `ht_puzzle_level`
+  (furthest unlocked index) and `ht_sudoku_stars`, `ht_puzzle_stars` (JSON best-stars
+  maps). Never leaves the device. (`ht_sudoku_size` was retired — size now derives from level.)
+  Math Quest adds `ht_math_facts` (JSON array of per-fact mastery records),
+  `ht_math_profile` (`{placed, allowDivision, bosses, bestSpeedMs}`) and
+  `ht_math_streak` (`{days, last}`). Also local-only.
 
 ## Testing
 
 `games-core.js` + `tests/smoke-tests.js` form a runtime-agnostic suite. The same file
 runs under Node, the browser, and Windows `cscript` (it is written ES3-safe on purpose:
 no template literals, arrows, `Array.from`, `forEach`, `Object.keys`, or
-`Array.prototype.indexOf`). Status: **13 passing**. See README → Testing.
+`Array.prototype.indexOf`). Covers Sudoku/Puzzle generation + validation and the new
+level/scoring logic (hole overrides, every level config solvable, star ratings).
+Status: **20 passing**. See README → Testing.
 
 ## Verifying in a real browser on THIS machine (no installs)
 
@@ -94,19 +130,57 @@ zero-build, privacy/COPPA+GDPR, PWA offline, WCAG AA accessibility, inline SVG o
 
 ## Design choices in effect (kid-facing)
 
-- Sudoku sizes 4×4 (default), 6×6, and 9×9; colorful shapes (nine of them) with a
-  numbers toggle. Placement clears the active symbol after each fill (one square per pick).
-- Puzzle 3×3 with built-in inline-SVG pictures (Kitty / Rocket / Flower) and a numbers
-  overlay toggle.
+- **Levels & scoring**: each game is a difficulty ladder; beating your furthest level
+  unlocks the next (a "🏆 Level N" button opens a level picker). Each solve earns 1–3
+  **stars** based on care (Sudoku: mistakes; Puzzle: moves vs par) — careful play can
+  always reach 3 stars. Speed is a separate, silent **⚡ Speedy!** bonus with **no
+  on-screen clock** (deliberately, to avoid time-pressure anxiety). The home screen shows
+  the running star total + per-game progress.
+  - Sudoku ladder (9 levels): 4×4 (5/7/9 holes) → 6×6 (12/16/20) → 9×9 (34/40/46).
+  - Puzzle ladder (5 levels): 3×3 (gentle/hard) → 4×4 (×2) → 5×5. Board size `N` is variable.
+- Sudoku colorful shapes (nine of them) with a numbers toggle. Placement clears the active
+  symbol after each fill (one square per pick).
+- Puzzle built-in inline-SVG pictures (Kitty / Rocket / Flower) and a numbers overlay toggle.
 - Generated Web-Audio sound effects with a global mute toggle.
-- Bright "candy" palette, bouncy animations that fully collapse under reduced-motion.
-- A themed confirm dialog guards actions that discard progress (Sudoku New / size change,
-  Puzzle New) — only when a game is actually in progress. Other controls act instantly.
+- Bright "candy" palette, bouncy animations (incl. star pop) that fully collapse under reduced-motion.
+- A themed confirm dialog guards actions that discard progress (Sudoku New / level change,
+  Puzzle New / level change) — only when a game is actually in progress. Other controls act instantly.
 
 ---
 
 ## Next
 
+- **Math Quest — Phase 0 + Phase 1 (MVP) shipped (2026-06-29)**: a third game, an
+  adaptive multiplication/division fluency trainer. Plan/northstar/roadmap in
+  `docs/MATH-QUEST.md`; rationale in DECISIONS 2026-06-29.
+  - **Engine** (`src/math-core.js`, `MathCore`): offline spaced-repetition + mastery
+    stages (accuracy AND speed gated) + adaptive placement + question/distractor
+    generation. Covered by the shared suite (`MathCore` passed as a 2nd arg through
+    all three runners — `run-node.js`, `run-cscript.js`, `tests/index.html`).
+  - **UI**: `#view-math` + Math home tile in `index.html`; a `MathGame` controller in
+    `app.js` (placement flow → adaptive 10-question sessions, choice vs number-pad
+    input by mastery stage, a new-fact strategy card, daily streak, session stars via
+    the shared Win overlay/confetti/audio); math styles in `style.css`; `card-math`
+    home gradient. State in `ht_math_facts` / `ht_math_profile` / `ht_math_streak`.
+    Every fluent fact adds a star to the home headline total.
+  - **SW**: `./math-core.js` added to precache; cache bumped to **v8** (Phase 2).
+  - **Verified**: **37/37** smoke tests (Node); `node --check` on app.js/math-core.js/
+    sw.js. Full app **auto-driven in headless Chrome over the DevTools Protocol**
+    (zero-dep CDP script): placement (18 probes) → mastery seeded → 10-question session
+    with number-pad + division input → session Win with 3 stars + Speedy badge → a
+    deliberate wrong answer correctly demoted a fluent fact (45→44) and persisted —
+    **zero JS errors**. Responsive screenshots confirmed at iPad (820), iPhone 17 Pro
+    Max (440) and S24 Ultra (412): home grid reflows (3-col → 2-col), and the question
+    card / 2×2 choice grid / number pad all fit the narrowest width.
+  - **Phase 2 shipped (2026-06-29)**: World Map (9 worlds, 🏆 on mastery), per-world
+    Boss Battles, personal-best Speed records, and the ×/÷ fact family on strategy cards.
+    See DECISIONS 2026-06-29 (second entry). Engine +5 tests (**42/42**); headless
+    screenshots of the map, a launched ×7 boss, the start screen, and the strategy card.
+  - **Next for Math (Phase 3+)**: a parent dashboard (offline mastery heatmap + speed
+    trends), then the optional, off-hot-path AI layer (weekly parent report + cached
+    themed word problems behind consent). (Note: the choice-mode + new-fact strategy-card
+    paths are engine-tested and screenshotted; an imperfect/slower *human* session is what
+    surfaces them mid-play — worth one casual real-device run with your daughter.)
 - Build is feature-complete against the Definition of Done and **verified in a real
   browser**: logic 13/13 (cscript + headless Chrome DOM), all three screens render
   correctly (screenshots), and the service worker registers + precaches all assets
@@ -117,6 +191,16 @@ zero-build, privacy/COPPA+GDPR, PWA offline, WCAG AA accessibility, inline SVG o
 - Post-launch feedback addressed (2026-06-06): fixed Sudoku auto-fill (clear active symbol
   after each placement); renamed puzzle "Shuffle" → "New"; added 9×9 Sudoku + 3 more shapes
   (now 9). SW cache bumped to v2. Verified 15/15 tests + headless screenshots of 9×9.
-- Optional polish next: persist in-progress games (resume after reload); add real PNG
-  app icons for best iOS "Add to Home Screen" fidelity (currently SVG-only); difficulty
-  tuning per size; consider numbers-default at 9×9 since 9 shapes are harder to tell apart.
+- **Levels & scoring shipped (2026-06-13)**: difficulty ladders per game (Sudoku 9 levels,
+  Puzzle 5 levels incl. variable 4×4/5×5 boards), 1–3 star ratings from accuracy/moves, a
+  silent ⚡ Speedy time bonus (no on-screen clock), unlock-as-you-win progression, a level
+  picker, a home star dashboard, and a win overlay with animated stars + Next-level button.
+  All state is local (`ht_*_level`, `ht_*_stars`). SW cache bumped to v6. Verified: **20/20**
+  smoke tests (cscript), clean boot in real Chrome (DOM dump shows the dashboard populated),
+  and headless screenshots of home + both games. See DECISIONS 2026-06-13.
+- Optional polish next: persist an *in-progress* game (resume mid-puzzle after reload — the
+  ladder position persists, but a partially-filled board does not); tune star/par thresholds
+  and the Speedy windows from real play; add real PNG app icons for iOS "Add to Home Screen";
+  a "Levels" hint/celebration when a brand-new board size first unlocks. Interactive overlay
+  flows are code-reviewed but were not auto-driven (no browser-driver on this box) — worth a
+  manual click-through of: solve → stars/Next, level picker lock/unlock, change-level confirm.

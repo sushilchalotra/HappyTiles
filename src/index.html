@@ -31,6 +31,10 @@
     <!-- ============================= HOME VIEW ============================= -->
     <section id="view-home" class="view is-active" aria-label="Choose a game">
       <h1 class="home-title">Pick a game!</h1>
+      <div class="score-strip" id="score-strip" role="status" aria-live="polite">
+        <span class="score-star" aria-hidden="true">⭐</span>
+        <span id="total-stars">0</span>&nbsp;stars collected
+      </div>
       <div class="game-grid">
         <button class="game-card card-sudoku" data-go="sudoku" type="button">
           <span class="game-card-art" aria-hidden="true">
@@ -46,6 +50,7 @@
             </svg>
           </span>
           <span class="game-card-label">Shape Sudoku</span>
+          <span class="card-progress" id="sudoku-progress" aria-hidden="true"></span>
         </button>
 
         <button class="game-card card-puzzle" data-go="puzzle" type="button">
@@ -64,6 +69,22 @@
             </svg>
           </span>
           <span class="game-card-label">Slide Puzzle</span>
+          <span class="card-progress" id="puzzle-progress" aria-hidden="true"></span>
+        </button>
+
+        <button class="game-card card-math" data-go="math" type="button">
+          <span class="game-card-art" aria-hidden="true">
+            <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-hidden="true">
+              <rect x="8" y="8" width="84" height="84" rx="14" fill="#fff" opacity="0.92"/>
+              <text x="26" y="40" font-size="26" font-weight="900" fill="#ff5fa2" text-anchor="middle">7</text>
+              <text x="50" y="40" font-size="26" font-weight="900" fill="#8a5cf6" text-anchor="middle">×</text>
+              <text x="74" y="40" font-size="26" font-weight="900" fill="#21d4c4" text-anchor="middle">8</text>
+              <line x1="20" y1="52" x2="80" y2="52" stroke="#ffce21" stroke-width="5" stroke-linecap="round"/>
+              <text x="50" y="80" font-size="30" font-weight="900" fill="#ff8a3d" text-anchor="middle">56</text>
+            </svg>
+          </span>
+          <span class="game-card-label">Math Quest</span>
+          <span class="card-progress" id="math-progress" aria-hidden="true"></span>
         </button>
       </div>
       <p class="home-tagline">No ads. No internet needed. Just fun! ✨</p>
@@ -73,11 +94,9 @@
     <section id="view-sudoku" class="view" aria-label="Sudoku game" hidden>
       <div class="toolbar">
         <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
-        <div class="seg" role="group" aria-label="Grid size">
-          <button class="seg-btn" id="size-4" type="button" aria-pressed="true">4×4</button>
-          <button class="seg-btn" id="size-6" type="button" aria-pressed="false">6×6</button>
-          <button class="seg-btn" id="size-9" type="button" aria-pressed="false">9×9</button>
-        </div>
+        <button class="pill-btn level-btn" id="sudoku-level" type="button" aria-label="Choose a level">
+          <span aria-hidden="true">🏆</span> <span id="sudoku-level-label">Level 1</span>
+        </button>
         <button class="pill-btn" id="sudoku-symbol-toggle" type="button" aria-label="Switch to numbers">
           <span aria-hidden="true">🔢</span> Numbers
         </button>
@@ -102,6 +121,9 @@
     <section id="view-puzzle" class="view" aria-label="Sliding puzzle game" hidden>
       <div class="toolbar">
         <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
+        <button class="pill-btn level-btn" id="puzzle-level" type="button" aria-label="Choose a level">
+          <span aria-hidden="true">🏆</span> <span id="puzzle-level-label">Level 1</span>
+        </button>
         <button class="pill-btn" id="puzzle-pic" type="button">
           <span aria-hidden="true">🖼️</span> Picture
         </button>
@@ -120,6 +142,23 @@
 
       <p id="puzzle-status" class="status" role="status" aria-live="polite">Press New to start!</p>
     </section>
+
+    <!-- ============================= MATH QUEST VIEW ============================= -->
+    <section id="view-math" class="view" aria-label="Math Quest game" hidden>
+      <div class="toolbar">
+        <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
+        <span class="pill-btn level-btn math-mastered-pill">
+          <span aria-hidden="true">🧠</span> <span id="math-mastered">0/45</span>
+        </span>
+        <button class="pill-btn" id="math-ops" type="button" aria-pressed="false" aria-label="Toggle division practice">
+          <span aria-hidden="true">➗</span> Division: off
+        </button>
+      </div>
+
+      <div id="math-stage" class="math-stage"></div>
+
+      <p id="math-status" class="status" role="status" aria-live="polite"></p>
+    </section>
   </main>
 
   <!-- ============================= WIN OVERLAY ============================= -->
@@ -128,9 +167,12 @@
     <div class="win-card" role="alertdialog" aria-modal="true" aria-labelledby="win-title">
       <div class="win-emoji" aria-hidden="true">🎉</div>
       <h2 id="win-title" class="win-title">You did it!</h2>
+      <div class="win-stars" id="win-stars" aria-hidden="true"></div>
+      <p class="win-badge" id="win-badge" hidden><span aria-hidden="true">⚡</span> Speedy!</p>
       <p class="win-sub" id="win-sub">Great job! 🌟</p>
       <div class="win-actions">
-        <button class="pill-btn pill-primary" id="win-again" type="button"><span aria-hidden="true">🔁</span> Play again</button>
+        <button class="pill-btn pill-primary" id="win-next" type="button" hidden><span aria-hidden="true">▶️</span> Next level</button>
+        <button class="pill-btn" id="win-again" type="button"><span aria-hidden="true">🔁</span> Play again</button>
         <button class="pill-btn" id="win-home" type="button"><span aria-hidden="true">🏠</span> Home</button>
       </div>
     </div>
@@ -149,7 +191,20 @@
     </div>
   </div>
 
+  <!-- ============================= LEVEL PICKER ============================= -->
+  <div id="level-overlay" class="win-overlay" hidden>
+    <div class="win-card level-card" role="dialog" aria-modal="true" aria-labelledby="level-title">
+      <h2 id="level-title" class="win-title">Levels</h2>
+      <p class="level-hint">Tap a level to play. 🔒 levels unlock as you win!</p>
+      <div id="level-grid" class="level-grid"></div>
+      <div class="win-actions">
+        <button class="pill-btn" id="level-close" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="./games-core.js" defer></script>
+  <script src="./math-core.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>

@@ -75,6 +75,88 @@
   available). 9×9 generation uses the same backtracking solver (fast in practice). Verified:
   15/15 smoke tests, and 9×9 renders in both numbers and shapes mode (headless screenshots).
 
+### 2026-06-13 — Levels, stars, and a no-clock speed bonus
+- **Decision**: Add per-game **difficulty ladders** (Sudoku 9 levels: 4×4→6×6→9×9 with rising
+  holes; Puzzle 5 levels: 3×3→4×4→5×5 with harder shuffles) where beating your furthest level
+  unlocks the next. Award **1–3 stars per solve from accuracy only** (Sudoku: mistakes made;
+  Puzzle: moves vs a generous par) so careful play can always reach 3 stars. Treat **speed as a
+  separate, purely-additive "⚡ Speedy!" badge with NO on-screen clock**. Persist progression
+  locally (`ht_sudoku_level`/`ht_puzzle_level` = furthest unlocked index; `ht_sudoku_stars`/
+  `ht_puzzle_stars` = JSON best-stars maps). Replace Sudoku's manual size buttons with a
+  level-driven flow; the Puzzle board size `N` becomes variable. Surface a star total + per-game
+  progress on the home screen and animated stars + a Next-level button on the win overlay.
+- **Context**: User wanted scoring + levels to motivate kids to "cross levels and score better."
+  They liked the idea of a time element but worried a running clock would create anxiety.
+- **Alternatives considered**: (a) *Stars only, free play* — simplest, but no progression pull;
+  rejected. (b) *Free play + separate Adventure mode* — most complete, but double the UI; rejected
+  as over-scoped for now. (c) *Timer in the rating* (countdown or visible count-up) — rejected
+  because tying stars to a clock pressures young kids; resolved by making time a hidden, additive
+  bonus that can never cost a star. (d) Guaranteeing unique Sudoku solutions at high hole counts —
+  not added; "complete with no conflicts" still counts as solved (kid-appropriate, matches prior
+  behavior), and the solver confirms every level config is solvable.
+- **Consequences**: Difficulty is now data (`SUDOKU_LEVELS`/`PUZZLE_LEVELS` in `games-core.js`),
+  so tuning is a table edit. Progression is local-only (still COPPA/GDPR-clean, offline). The
+  Sudoku size-picker UI is gone (levels drive size). Star/par/Speedy thresholds are first-pass and
+  may need tuning from real play. SW cache bumped to **v6**. Verified: 20/20 smoke tests, clean
+  boot in real Chrome (DOM dump), and headless screenshots of home + both games.
+
+### 2026-06-29 — Add "Math Quest": an adaptive times-tables game (3rd game)
+- **Decision**: Build a multiplication/division **fluency trainer** as a THIRD game
+  *inside* HappyTiles (not a separate app), reusing the home/stars/audio/confetti/PWA
+  shell. The adaptive "brain" is a new pure module `src/math-core.js` (the counterpart
+  to `games-core.js`) that runs **fully offline and deterministically** — spaced
+  repetition (Leitner boxes), per-fact mastery stages (New→Learning→Reviewing→Fluent)
+  gated on **both accuracy and response time**, weighted item selection, adaptive
+  placement, and pedagogical question/distractor generation. Input is **adaptive**:
+  multiple-choice while learning a fact, number-pad typing once building fluency.
+  Each fluent fact counts as a star toward the home total. New keys: `ht_math_facts`,
+  `ht_math_profile`, `ht_math_streak`. Plan/northstar/roadmap captured in
+  `docs/MATH-QUEST.md`.
+- **Context**: The user (parent) wants their early-3rd-grade daughter to memorize the
+  2–10 tables and do divisions faster, via a motivating, adaptive game. They asked
+  whether it should live in HappyTiles or be standalone, and whether to use an LLM.
+- **Alternatives considered**: (a) *Separate standalone PWA* — cleaner identity and
+  unlimited room, but throws away the existing shell/progression/audio/PWA/deploy and
+  splits the child's experience across two installs; rejected for reuse + one-app
+  motivation. (b) *LLM in the gameplay loop* — rejected: a speed game needs instant
+  questions, and an LLM round-trip would add latency, cost, and an online dependency,
+  breaking HappyTiles' offline-first, privacy-first, zero-build ethos. The genuine
+  pedagogy (SRS, mastery, placement) is well-understood and runs better as a fast,
+  free, offline, testable engine. (c) *No AI ever* — viable, but we keep the door open.
+- **Consequences**: Commits us to an offline, deterministic engine covered by the
+  shared smoke-test suite (ES3-safe, like `games-core.js`). The home "stars" headline
+  now also sums math mastery. Any future AI (parent weekly reports, themed word
+  problems) must stay **off the child's gameplay hot path** — async, parent-initiated,
+  cached, behind consent — and would run as a separate serverless function so the
+  static app stays zero-build and offline. SW cache will bump when the math assets ship.
+
+### 2026-06-29 — Math Quest Phase 2: worlds, boss battles, speed records
+- **Decision**: Add a meta-progression layer to Math Quest. Partition the 45 facts
+  into nine **"worlds"** (one per table), where each fact is owned by the earliest
+  table in teaching order that introduces it (so 7×8 ∈ the ×7 world). A world is
+  **complete** when all its owned facts are fluent (earns a 🏆), and **boss-ready**
+  when every owned fact is at least *reviewing* but not all fluent. A **Boss Battle**
+  is a focused session over one world's facts (`selectNext` gained an `opts.ids`
+  restriction); beating it (~10/12) records the world in `profile.bosses`. **Speed
+  Rounds** track a personal-best median (`profile.bestSpeedMs`) and celebrate new
+  records. The **strategy card** now shows the full ×/÷ **fact family** (deduped for
+  squares) when division is on. New UI: a World Map screen + start-screen Boss/Map
+  shortcuts. All pure logic (`worlds`, `worldFacts`, `worldOf`) lives in `math-core.js`
+  and is unit-tested.
+- **Context**: Phase 1 gave a working adaptive loop; Phase 2 adds the long-term
+  "why keep playing" — a visible map that grows, trophies, and speed goals.
+- **Alternatives considered**: (a) A free-form collectible (creatures/garden) decoupled
+  from tables — cuter but disconnected from the actual learning structure; rejected in
+  favor of worlds == tables, so the meta-progress *is* the curriculum. (b) Bosses gated
+  on full fluency — rejected; gating on "all reviewing" gives a reachable challenge that
+  itself pushes facts toward fluent. (c) A visible countdown clock for speed — still
+  rejected (HappyTiles' no-anxiety stance); speed stays a personal-best celebration.
+- **Consequences**: `ht_math_profile` now also stores `bosses` and `bestSpeedMs`
+  (still local-only). SW cache bumped to **v8**. Also added a zero-dep dev server
+  `serve.mjs` (Node) since the documented Azure-Python path was awkward. Verified:
+  **42/42** smoke tests + headless screenshots of the map, a launched ×7 boss, the
+  start screen, and the fact-family strategy card.
+
 ### 2026-06-06 — ES3-safe, runtime-agnostic smoke tests
 - **Decision**: Write one shared suite (`tests/smoke-tests.js`) that runs unchanged under Node, the browser, and Windows `cscript`/JScript. Keep `games-core.js` and the suite ES3-safe (no template literals, arrows, `Array.from`, `forEach`, `Object.keys`, `Array.prototype.indexOf`).
 - **Context**: This dev machine has only Microsoft Store *stub* Python/Node (non-functional); the only working JS engine present is the built-in Windows Script Host (`cscript`), which is ES3-era.

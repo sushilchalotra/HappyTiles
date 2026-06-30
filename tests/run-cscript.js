@@ -14,11 +14,12 @@ function readFile(p) {
   return t;
 }
 
-// Load the game core and the shared test suite into this scope.
+// Load the game cores and the shared test suite into this scope.
 eval(readFile(scriptDir + '\\..\\src\\games-core.js'));
+eval(readFile(scriptDir + '\\..\\src\\math-core.js'));
 eval(readFile(scriptDir + '\\smoke-tests.js'));
 
-var res = runHappyTests(HappyCore);
+var res = runHappyTests(HappyCore, MathCore);
 
 for (var i = 0; i < res.results.length; i++) {
   var r = res.results[i];

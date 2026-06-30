@@ -149,6 +149,7 @@ body {
 .game-card:active { transform: translateY(0) scale(0.98); }
 .card-sudoku { background: linear-gradient(155deg, var(--pink), var(--purple)); }
 .card-puzzle { background: linear-gradient(155deg, var(--teal-deep), var(--purple-deep)); }
+.card-math   { background: linear-gradient(155deg, var(--orange), var(--pink-deep)); }
 .game-card-art {
   width: 110px; height: 110px;
   display: grid; place-items: center;
@@ -365,6 +366,258 @@ body {
 .win-title { margin: 6px 0 4px; font-size: 1.9rem; }
 .win-sub { margin: 0 0 18px; color: var(--ink-soft); font-weight: 600; }
 .win-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+/* ----------------------------------- Score & levels ----------------------------------- */
+/* Home: running total of stars collected — the motivator. */
+.score-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: -6px 0 18px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+.score-strip .score-star { font-size: 1.3rem; }
+#total-stars { color: var(--purple-deep); }
+
+/* Per-card progress line ("Level 3 · ★★☆"). */
+.card-progress {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  padding: 3px 12px;
+  min-height: 0;
+}
+
+/* Toolbar level button uses the accent so it reads as the primary progression hook. */
+.level-btn { background: var(--yellow); border-color: var(--orange); color: var(--ink); }
+
+/* Star rows (win card, level chips, home cards). */
+.win-stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 6px;
+  font-size: 2.6rem;
+  line-height: 1;
+}
+.star { color: #d9cfe8; }                 /* empty star */
+.star.is-on { color: var(--yellow); text-shadow: 0 2px 4px rgba(255, 138, 61, 0.5); }
+.win-stars .star.is-on { animation: starPop 0.45s ease both; }
+.win-stars .star:nth-child(2).is-on { animation-delay: 0.12s; }
+.win-stars .star:nth-child(3).is-on { animation-delay: 0.24s; }
+@keyframes starPop {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  60% { transform: scale(1.25) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+
+.win-badge {
+  margin: 0 0 10px;
+  font-weight: 800;
+  color: var(--purple-deep);
+  background: #f3eeff;
+  border-radius: 999px;
+  padding: 4px 14px;
+  display: inline-block;
+}
+
+/* Level picker overlay */
+.level-card { width: 380px; }
+.level-hint { color: var(--ink-soft); font-weight: 600; margin: 0 0 16px; font-size: 0.95rem; }
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.level-chip {
+  border: 2px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 12px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s ease;
+}
+.level-chip:active { transform: scale(0.94); }
+.level-chip-n { font-size: 1.5rem; font-weight: 900; color: var(--ink); }
+.level-chip-stars { font-size: 0.95rem; letter-spacing: 1px; }
+.level-chip.is-current { border-color: var(--purple-deep); box-shadow: inset 0 0 0 3px var(--purple-deep); }
+.level-chip.is-locked { background: #f1edf7; cursor: default; box-shadow: none; opacity: 0.8; }
+.level-chip.is-locked .level-chip-n { color: var(--ink-soft); }
+
+/* ----------------------------------- Math Quest ----------------------------------- */
+.math-mastered-pill { cursor: default; }
+
+.math-stage { display: grid; place-items: center; margin-top: 6px; }
+
+/* Panels: start / placement done / strategy card */
+.math-panel {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 26px 22px 28px;
+  text-align: center;
+  width: min(92vw, 460px);
+  animation: bounceIn 0.35s ease both;
+}
+.math-big-emoji { font-size: 3rem; line-height: 1; }
+.math-h { margin: 10px 0 6px; font-size: 1.6rem; }
+.math-p { color: var(--ink-soft); font-weight: 600; margin: 0 auto 18px; max-width: 34ch; line-height: 1.45; }
+.math-stats { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.math-chip {
+  background: #f3eeff; color: var(--purple-deep);
+  border-radius: 999px; padding: 8px 16px; font-weight: 800;
+}
+.math-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.math-go { font-size: 1.15rem; padding: 0 22px; min-height: 54px; }
+
+/* Question card */
+.math-q {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 18px 18px 24px;
+  width: min(92vw, 460px);
+  text-align: center;
+}
+.math-q-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.math-q-label { font-weight: 800; color: var(--orange); font-size: 0.95rem; }
+.math-dots { display: inline-flex; gap: 5px; align-items: center; }
+.math-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.math-dot.done { background: var(--teal); }
+.math-dot.now { background: var(--purple-deep); transform: scale(1.25); }
+
+.math-prompt {
+  font-size: clamp(2.4rem, 11vw, 3.4rem);
+  font-weight: 900; color: var(--ink);
+  margin: 12px 0 18px; letter-spacing: 1px;
+}
+.math-prompt-lg { color: var(--purple-deep); }
+
+/* Multiple choice */
+.math-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.math-choice {
+  min-height: 68px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 2rem; font-weight: 900; color: var(--ink);
+  cursor: pointer; box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.math-choice:active { transform: scale(0.95); }
+.math-choice:disabled { cursor: default; }
+.math-choice.is-correct { background: #d8f7e4; border-color: var(--teal-deep); color: #0c6b39; }
+.math-choice.is-wrong { background: #ffdfe8; border-color: var(--pink-deep); color: var(--pink-deep); }
+
+/* Number pad */
+.math-entry {
+  font-size: 2.4rem; font-weight: 900; color: var(--purple-deep);
+  background: #f7f3ff; border-radius: var(--radius);
+  min-height: 60px; display: grid; place-items: center; margin-bottom: 12px;
+}
+.math-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.math-key {
+  min-height: 60px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  font-size: 1.7rem; font-weight: 800; color: var(--ink);
+  cursor: pointer; box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease;
+}
+.math-key:active { transform: scale(0.92); }
+.math-key:disabled { opacity: 0.5; cursor: default; }
+.math-key-fn { background: #f1edf7; }
+.math-key-go { background: var(--teal-deep); color: #fff; border-color: var(--teal-deep); }
+
+.math-feedback { min-height: 1.6em; margin-top: 14px; font-weight: 800; font-size: 1.15rem; }
+.math-feedback.is-good { color: #0c6b39; }
+.math-feedback.is-bad { color: var(--pink-deep); }
+
+/* Strategy / new-skill card */
+.math-strategy .math-strat-title { margin: 4px 0 8px; color: var(--orange); font-size: 1.3rem; }
+.math-new-badge {
+  display: inline-block; background: var(--yellow); color: var(--ink);
+  font-weight: 800; border-radius: 999px; padding: 5px 16px; margin-bottom: 6px;
+}
+.math-family {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px;
+  margin: 0 0 18px; color: var(--purple-deep); font-weight: 800;
+}
+.math-family span { background: #f3eeff; border-radius: 10px; padding: 4px 10px; }
+
+.math-boss-btn { background: #ffe1ea; border-color: var(--pink-deep); color: var(--pink-deep); }
+
+/* World map (meta-progression) */
+.math-map-panel { width: min(94vw, 520px); }
+.world-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 20px; }
+.world-tile {
+  border: 2px solid var(--line); border-radius: var(--radius);
+  background: var(--card); box-shadow: var(--shadow-sm);
+  padding: 12px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+}
+.world-tile.world-locked { background: #f1edf7; opacity: 0.75; }
+.world-tile.world-complete { border-color: var(--yellow); box-shadow: 0 0 0 3px var(--yellow) inset; }
+.world-emoji { font-size: 1.9rem; line-height: 1; }
+.world-label { font-weight: 900; color: var(--ink); }
+.world-bar { width: 100%; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.world-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--teal), var(--purple)); }
+.world-count { font-size: 0.85rem; font-weight: 800; color: var(--ink-soft); }
+.world-boss {
+  margin-top: 2px; border: none; border-radius: 999px; cursor: pointer;
+  background: var(--pink-deep); color: #fff; font-weight: 800; font-size: 0.85rem;
+  padding: 5px 12px; min-height: 34px;
+}
+.world-boss:active { transform: scale(0.94); }
+
+/* Parent dashboard */
+.math-parent-link {
+  display: inline-block; margin: 16px auto 0; border: none; background: transparent;
+  color: var(--ink-soft); font-weight: 700; font-size: 0.9rem; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.dash-panel { width: min(96vw, 560px); }
+.dash-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 6px 0 16px; }
+.dash-stat { background: #f7f3ff; border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; }
+.dash-stat b { font-size: 1.25rem; color: var(--purple-deep); }
+.dash-stat span { font-size: 0.65rem; color: var(--ink-soft); font-weight: 700; }
+
+.heat { display: grid; gap: 3px; }
+.heat-corner, .heat-head { display: grid; place-items: center; font-weight: 900; color: var(--ink-soft); font-size: 0.75rem; }
+.heat-cell {
+  aspect-ratio: 1 / 1; display: grid; place-items: center;
+  border-radius: 5px; font-size: 0.6rem; font-weight: 800; color: var(--ink);
+}
+.st-new    { background: #ece8f2; color: #9b8fb0; }
+.st-learn  { background: #ffe6a8; }
+.st-review { background: #bcd7ff; }
+.st-fluent { background: #b6f0c8; }
+
+.dash-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; margin: 12px 0 16px; font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); }
+.dash-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.dash-legend .sw { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+.dash-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
+.dash-col h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.dash-col ul { list-style: none; padding: 0; margin: 0; }
+.dash-col li { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 5px 8px; background: #faf7ff; border-radius: 8px; margin-bottom: 5px; font-size: 0.85rem; }
+.dash-fact { font-weight: 800; color: var(--ink); }
+.dash-val { color: var(--ink-soft); font-weight: 700; font-size: 0.8rem; }
+.dash-empty { color: var(--ink-soft); background: transparent !important; font-style: italic; }
+
+.dash-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.dash-reset { color: var(--pink-deep); border-color: #f3c2d2; }
 
 /* ----------------------------------- Reduced motion ----------------------------------- */
 @media (prefers-reduced-motion: reduce) {

@@ -97,13 +97,16 @@ var HappyCore = (function () {
   }
 
   // Returns { n, boxRows, boxCols, grid, given, solution }
-  function sudokuNewPuzzle(size, rng) {
+  // `holes` is optional; when omitted the size's default count is used. Levels
+  // pass an explicit hole count to tune difficulty within a board size.
+  function sudokuNewPuzzle(size, rng, holes) {
     var cfg = SUDOKU_CONFIG[size];
+    var nHoles = (typeof holes === 'number') ? holes : cfg.holes;
     var solution = sudokuGenerateSolution(size, rng);
     var grid = solution.slice();
     var order = rangeArray(cfg.n * cfg.n);
     shuffleInPlace(order, rng);
-    for (var k = 0; k < cfg.holes; k++) { grid[order[k]] = 0; }
+    for (var k = 0; k < nHoles; k++) { grid[order[k]] = 0; }
     var given = [];
     for (var i = 0; i < grid.length; i++) { given[i] = grid[i] !== 0; }
     return {
@@ -216,8 +219,52 @@ var HappyCore = (function () {
     return ((inv + blankRowFromBottom) % 2 === 1);
   }
 
+  /* ===================== LEVELS & SCORING (pure data + math) ===================== */
+  // Difficulty ladders. Each game is a sequence of levels; beating your furthest
+  // unlocked level unlocks the next. These are pure data so they stay testable.
+  //
+  // Sudoku level: { size, holes } — bigger board + more holes as you climb.
+  var SUDOKU_LEVELS = [
+    { size: 4, holes: 5 },
+    { size: 4, holes: 7 },
+    { size: 4, holes: 9 },
+    { size: 6, holes: 12 },
+    { size: 6, holes: 16 },
+    { size: 6, holes: 20 },
+    { size: 9, holes: 34 },
+    { size: 9, holes: 40 },
+    { size: 9, holes: 46 }
+  ];
+  // Puzzle level: { size, steps, par } — bigger board + harder shuffle. `par` is a
+  // kid-generous move target: at/under par earns 3 stars.
+  var PUZZLE_LEVELS = [
+    { size: 3, steps: 40,  par: 30 },
+    { size: 3, steps: 120, par: 80 },
+    { size: 4, steps: 160, par: 140 },
+    { size: 4, steps: 280, par: 220 },
+    { size: 5, steps: 360, par: 360 }
+  ];
+
+  // Stars (1..3). Careful play always reaches 3 — speed is a separate bonus, not
+  // a factor here, so there is never time pressure baked into the rating.
+  function sudokuStars(mistakes) {
+    if (mistakes <= 0) { return 3; }   // never triggered a duplicate
+    if (mistakes <= 3) { return 2; }
+    return 1;
+  }
+  function puzzleStars(moves, par) {
+    if (moves <= par) { return 3; }
+    if (moves <= Math.round(par * 1.6)) { return 2; }
+    return 1;
+  }
+
   /* ------------------------------ exports ------------------------------ */
   return {
+    // levels & scoring
+    SUDOKU_LEVELS: SUDOKU_LEVELS,
+    PUZZLE_LEVELS: PUZZLE_LEVELS,
+    sudokuStars: sudokuStars,
+    puzzleStars: puzzleStars,
     // util
     makeRng: makeRng,
     shuffleInPlace: shuffleInPlace,

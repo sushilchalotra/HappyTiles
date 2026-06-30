@@ -32,10 +32,69 @@
   const settings = {
     muted:           Store.get('ht_muted', 'false') === 'true',
     sudokuSymbols:   Store.get('ht_sudoku_symbols', 'shapes'),   // 'shapes' | 'numbers'
-    sudokuSize:      parseInt(Store.get('ht_sudoku_size', '4'), 10),
     puzzlePic:       parseInt(Store.get('ht_puzzle_pic', '0'), 10),
     puzzleNumbers:   Store.get('ht_puzzle_numbers', 'true') === 'true'
   };
+
+  /* ===================== 1b. Scores & level progression ===================== */
+  // Persistent, local-only progression. For each game we store the furthest
+  // UNLOCKED level (0-based index) and a map of best-stars per level. Total stars
+  // (sum of bests) is the headline score shown on the home screen.
+  const Scores = (function () {
+    const KEYS = {
+      sudoku: { level: 'ht_sudoku_level', stars: 'ht_sudoku_stars' },
+      puzzle: { level: 'ht_puzzle_level', stars: 'ht_puzzle_stars' }
+    };
+    function loadMap(key) {
+      try { const v = JSON.parse(Store.get(key, '{}')); return (v && typeof v === 'object') ? v : {}; }
+      catch (e) { return {}; }
+    }
+    const state = {
+      sudoku: { level: parseInt(Store.get(KEYS.sudoku.level, '0'), 10) || 0, stars: loadMap(KEYS.sudoku.stars) },
+      puzzle: { level: parseInt(Store.get(KEYS.puzzle.level, '0'), 10) || 0, stars: loadMap(KEYS.puzzle.stars) }
+    };
+
+    function ladder(game) { return game === 'sudoku' ? HappyCore.SUDOKU_LEVELS : HappyCore.PUZZLE_LEVELS; }
+    function unlocked(game) { return state[game].level; }              // furthest unlocked index
+    function bestStars(game, idx) { return state[game].stars[idx] || 0; }
+
+    // Record a finished level. Returns { unlockedNew, improved }.
+    function record(game, idx, stars) {
+      const s = state[game];
+      let improved = false;
+      if (stars > (s.stars[idx] || 0)) {
+        s.stars[idx] = stars;
+        Store.set(KEYS[game].stars, JSON.stringify(s.stars));
+        improved = true;
+      }
+      let unlockedNew = false;
+      if (idx === s.level && idx + 1 < ladder(game).length) {
+        s.level = idx + 1;
+        Store.set(KEYS[game].level, String(s.level));
+        unlockedNew = true;
+      }
+      return { unlockedNew, improved };
+    }
+
+    function gameStars(game) {
+      const map = state[game].stars;
+      return Object.keys(map).reduce((t, k) => t + map[k], 0);
+    }
+    function totalStars() { return gameStars('sudoku') + gameStars('puzzle'); }
+    function maxStars(game) { return ladder(game).length * 3; }
+
+    return { ladder, unlocked, bestStars, record, gameStars, totalStars, maxStars };
+  })();
+
+  // Star row markup shared by the win card, level chips and home cards.
+  function starsMarkup(filled, total) {
+    total = total || 3;
+    let html = '';
+    for (let i = 1; i <= total; i++) {
+      html += '<span class="star' + (i <= filled ? ' is-on' : '') + '">★</span>';
+    }
+    return html;
+  }
 
   /* ========================== 2. Audio engine ========================== */
   const Audio = (function () {
@@ -157,22 +216,30 @@
   /* ========================== 4. Win overlay ========================== */
   const Win = (function () {
     const overlay = $('#win-overlay');
-    let onAgain = null;
+    const nextBtn = $('#win-next');
+    const againBtn = $('#win-again');
+    let onAgain = null, onNext = null;
 
-    function show(title, sub, againCb) {
-      onAgain = againCb;
-      $('#win-title').textContent = title;
-      $('#win-sub').textContent = sub;
+    // opts: { title, sub, stars (0..3), speedy, next:{cb}|null, again:{cb} }
+    function show(opts) {
+      onAgain = (opts.again && opts.again.cb) || null;
+      onNext  = (opts.next && opts.next.cb) || null;
+      $('#win-title').textContent = opts.title || 'You did it!';
+      $('#win-sub').textContent = opts.sub || '';
+      $('#win-stars').innerHTML = starsMarkup(opts.stars || 0, 3);
+      $('#win-badge').hidden = !opts.speedy;
+      nextBtn.hidden = !onNext;
       overlay.hidden = false;
       Audio.play('win');
       Confetti.start();
-      $('#win-again').focus();
+      (onNext ? nextBtn : againBtn).focus();
     }
     function hide() {
       overlay.hidden = true;
       Confetti.stop();
     }
-    $('#win-again').addEventListener('click', () => { hide(); if (onAgain) onAgain(); });
+    nextBtn.addEventListener('click', () => { const f = onNext; hide(); if (f) f(); });
+    againBtn.addEventListener('click', () => { const f = onAgain; hide(); if (f) f(); });
     $('#win-home').addEventListener('click', () => { hide(); Nav.go('home'); });
 
     return { show, hide };
@@ -200,6 +267,51 @@
     document.addEventListener('keydown', (e) => { if (!overlay.hidden && e.key === 'Escape') close(); });
 
     return { ask };
+  })();
+
+  /* ===================== 4c. Level picker ===================== */
+  // A kid-friendly "choose a level" grid. Unlocked levels show their best stars;
+  // locked levels show 🔒. Used by both games.
+  const LevelPicker = (function () {
+    const overlay = $('#level-overlay');
+    const gridEl = $('#level-grid');
+    let onPick = null;
+
+    function open(game, currentIdx, pickCb) {
+      onPick = pickCb;
+      $('#level-title').textContent = game === 'sudoku' ? 'Sudoku Levels' : 'Puzzle Levels';
+      const ladder = Scores.ladder(game);
+      const unlocked = Scores.unlocked(game);
+      gridEl.innerHTML = '';
+      for (let idx = 0; idx < ladder.length; idx++) {
+        const locked = idx > unlocked;
+        const best = Scores.bestStars(game, idx);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'level-chip' + (idx === currentIdx ? ' is-current' : '') + (locked ? ' is-locked' : '');
+        b.disabled = locked;
+        b.innerHTML =
+          '<span class="level-chip-n">' + (locked ? '🔒' : (idx + 1)) + '</span>' +
+          '<span class="level-chip-stars" aria-hidden="true">' + starsMarkup(best, 3) + '</span>';
+        b.setAttribute('aria-label', locked
+          ? ('Level ' + (idx + 1) + ', locked')
+          : ('Level ' + (idx + 1) + ', best ' + best + ' of 3 stars'));
+        if (!locked) {
+          const pickIdx = idx;
+          b.addEventListener('click', () => { close(); if (onPick) onPick(pickIdx); });
+        }
+        gridEl.appendChild(b);
+      }
+      overlay.hidden = false;
+      $('#level-close').focus();
+    }
+    function close() { overlay.hidden = true; onPick = null; }
+
+    $('#level-close').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (!overlay.hidden && e.key === 'Escape') close(); });
+
+    return { open };
   })();
 
   /* ========================== 5. SVG assets ========================== */
@@ -284,8 +396,22 @@
   }
 
   /* ========================== 6. Navigation ========================== */
+  // Home dashboard: headline star total + per-game progress. Every mastered math
+  // fact counts as a star too, so the headline reflects all three games.
+  function renderHome() {
+    $('#total-stars').textContent = String(Scores.totalStars() + MathGame.homeStars());
+    function fill(game, elId) {
+      const lvl = Scores.unlocked(game) + 1;     // human-facing furthest level
+      $(elId).innerHTML = 'Level ' + lvl + ' · ' + Scores.gameStars(game) + '/' + Scores.maxStars(game) +
+                          ' <span class="star is-on">★</span>';
+    }
+    fill('sudoku', '#sudoku-progress');
+    fill('puzzle', '#puzzle-progress');
+    $('#math-progress').innerHTML = '🧠 ' + MathGame.masteredText() + ' facts <span class="star is-on">★</span>';
+  }
+
   const Nav = (function () {
-    const views = { home: $('#view-home'), sudoku: $('#view-sudoku'), puzzle: $('#view-puzzle') };
+    const views = { home: $('#view-home'), sudoku: $('#view-sudoku'), puzzle: $('#view-puzzle'), math: $('#view-math') };
     const started = { sudoku: false, puzzle: false };
 
     function go(name) {
@@ -299,8 +425,10 @@
         // update hash without triggering another full route
         history.replaceState(null, '', '#' + name);
       }
+      if (name === 'home') renderHome();
       if (name === 'sudoku' && !started.sudoku) { Sudoku.init(); started.sudoku = true; }
       if (name === 'puzzle' && !started.puzzle) { Puzzle.init(); started.puzzle = true; }
+      if (name === 'math') MathGame.enter();   // fresh start screen on every visit
     }
 
     function route() { go((location.hash || '#home').slice(1)); }
@@ -321,17 +449,29 @@
     let selected = -1;      // selected cell index
     let armed = null;       // armed palette symbol (0 = eraser)
     let undoStack = [];
+    let level = 0;          // current level index (into HappyCore.SUDOKU_LEVELS)
+    let mistakes = 0;       // duplicate-causing placements this puzzle (drives stars)
+    let startTime = 0;      // ms timestamp of puzzle start (silent speed bonus)
 
     // Pure generation/validation lives in HappyCore (see games-core.js).
     function buildPuzzle() {
-      const p = HappyCore.sudokuNewPuzzle(settings.sudokuSize);
+      const cfg = HappyCore.SUDOKU_LEVELS[level];
+      const p = HappyCore.sudokuNewPuzzle(cfg.size, undefined, cfg.holes);
       n = p.n; boxRows = p.boxRows; boxCols = p.boxCols;
       grid = p.grid; given = p.given;
       selected = -1; armed = null; undoStack = [];
+      mistakes = 0; startTime = Date.now();
       render();
       renderPalette();
+      syncLevel();
       setStatus('Tap a square, then pick a symbol.');
     }
+
+    function syncLevel() {
+      $('#sudoku-level-label').textContent = 'Level ' + (level + 1);
+    }
+
+    function startLevel(idx) { level = idx; buildPuzzle(); }
 
     // True when the player has filled at least one (non-clue) square and the
     // board isn't already solved — i.e. there's progress worth protecting.
@@ -438,13 +578,33 @@
       const el = boardEl.querySelector(`[data-i="${i}"]`);
       if (el && v !== 0 && !REDUCED_MOTION) { el.classList.add('pop'); }
       if (isSolved(bad)) {
-        setStatus('You solved it! 🎉');
-        Win.show('You did it!', 'Sudoku solved! 🌟', buildPuzzle);
+        finishWin();
       } else if (bad.size) {
+        mistakes++;     // counts toward the star rating (3 stars = zero mistakes)
         setStatus('Oops — two of the same in a line or box. Try again!');
       } else {
         setStatus('Nice! Keep going.');
       }
+    }
+
+    function finishWin() {
+      const cfg = HappyCore.SUDOKU_LEVELS[level];
+      const stars = HappyCore.sudokuStars(mistakes);
+      const seconds = (Date.now() - startTime) / 1000;
+      const speedy = seconds <= cfg.holes * 6;            // silent, generous speed bonus
+      const res = Scores.record('sudoku', level, stars);
+      const hasNext = level + 1 < HappyCore.SUDOKU_LEVELS.length && level + 1 <= Scores.unlocked('sudoku');
+      setStatus('You solved it! 🎉');
+      Win.show({
+        title: 'You did it!',
+        sub: res.unlockedNew
+          ? 'Level ' + (level + 1) + ' done — Level ' + (level + 2) + ' unlocked! 🔓'
+          : cfg.size + '×' + cfg.size + ' solved! 🌟',
+        stars: stars,
+        speedy: speedy,
+        next: hasNext ? { cb: () => startLevel(level + 1) } : null,
+        again: { cb: buildPuzzle }
+      });
     }
 
     function undo() {
@@ -457,25 +617,17 @@
       setStatus('Undone.');
     }
 
-    function applySize(size) {
-      settings.sudokuSize = size;
-      Store.set('ht_sudoku_size', String(size));
-      $('#size-4').setAttribute('aria-pressed', String(size === 4));
-      $('#size-6').setAttribute('aria-pressed', String(size === 6));
-      $('#size-9').setAttribute('aria-pressed', String(size === 9));
-      buildPuzzle();   // pulls n/boxRows/boxCols from HappyCore for this size
-    }
-
-    // Size button — ignore taps on the current size; confirm if changing size
-    // would discard an in-progress puzzle.
-    function requestSize(size) {
-      if (size === settings.sudokuSize) return;
-      if (inProgress()) {
-        Confirm.ask({ title: 'Change board size?', sub: 'This starts a new game. Your progress will be lost.',
-                      yes: 'Yes, change', onYes: () => applySize(size) });
-      } else {
-        applySize(size);
-      }
+    // Level button — open the picker; confirm if switching would discard progress.
+    function openLevels() {
+      LevelPicker.open('sudoku', level, (idx) => {
+        if (idx === level) return;
+        if (inProgress()) {
+          Confirm.ask({ title: 'Change level?', sub: 'This starts a new game. Your progress will be lost.',
+                        yes: 'Yes, change', onYes: () => startLevel(idx) });
+        } else {
+          startLevel(idx);
+        }
+      });
     }
 
     function toggleSymbols() {
@@ -496,14 +648,13 @@
     }
 
     function init() {
-      $('#size-4').addEventListener('click', () => requestSize(4));
-      $('#size-6').addEventListener('click', () => requestSize(6));
-      $('#size-9').addEventListener('click', () => requestSize(9));
+      level = Scores.unlocked('sudoku');   // resume at the furthest unlocked level
+      $('#sudoku-level').addEventListener('click', openLevels);
       $('#sudoku-symbol-toggle').addEventListener('click', toggleSymbols);
       $('#sudoku-undo').addEventListener('click', undo);
       $('#sudoku-new').addEventListener('click', requestNew);
       syncSymbolButton();
-      applySize(settings.sudokuSize);   // builds the first puzzle (no prompt)
+      buildPuzzle();   // builds the first puzzle at the current level (no prompt)
     }
 
     return { init };
@@ -514,13 +665,16 @@
     const boardEl  = $('#puzzle-board');
     const statusEl = $('#puzzle-status');
     const movesEl  = $('#puzzle-moves');
-    const N = 3;
-    const BLANK = N * N - 1;     // value 8 represents the blank
+    let N = 3;                  // board width — set per level
+    let BLANK = N * N - 1;      // highest value represents the blank
     const GAP = 6;              // px, matches the visual frame
 
-    let board = [];             // board[positionIndex] = tile value (0..8)
+    let board = [];             // board[positionIndex] = tile value
     let moves = 0;
     let started = false;        // becomes true after first shuffle
+    let level = 0;              // current level index (into HappyCore.PUZZLE_LEVELS)
+    let par = 30;              // move target for 3 stars (from the level config)
+    let startTime = 0;          // ms timestamp of shuffle (silent speed bonus)
 
     // Pure board logic lives in HappyCore (see games-core.js).
     function blankPos() { return board.indexOf(BLANK); }
@@ -531,11 +685,24 @@
     function setMoves(m) { moves = m; movesEl.textContent = 'Moves: ' + m; }
 
     function shuffle() {
-      board = HappyCore.puzzleShuffle(N, 120);   // always solvable, never pre-solved
+      const cfg = HappyCore.PUZZLE_LEVELS[level];
+      board = HappyCore.puzzleShuffle(N, cfg.steps);   // always solvable, never pre-solved
       started = true;
+      startTime = Date.now();
       setMoves(0);
       render();
       setStatus('Slide the tiles to fix the picture!');
+    }
+
+    function syncLevel() { $('#puzzle-level-label').textContent = 'Level ' + (level + 1); }
+
+    // Switch to a level: resize the board, then shuffle a fresh one.
+    function startLevel(idx) {
+      level = idx;
+      const cfg = HappyCore.PUZZLE_LEVELS[level];
+      N = cfg.size; BLANK = N * N - 1; par = cfg.par;
+      syncLevel();
+      shuffle();
     }
 
     // Progress worth protecting: the player has moved tiles and hasn't won yet.
@@ -551,6 +718,19 @@
       }
     }
 
+    // Level button — open the picker; confirm if switching would discard progress.
+    function openLevels() {
+      LevelPicker.open('puzzle', level, (idx) => {
+        if (idx === level) return;
+        if (inProgress()) {
+          Confirm.ask({ title: 'Change level?', sub: 'This starts a new game. Your progress will be lost.',
+                        yes: 'Yes, change', onYes: () => startLevel(idx) });
+        } else {
+          startLevel(idx);
+        }
+      });
+    }
+
     function tryMove(pos) {
       if (!started) return;
       const bp = blankPos();
@@ -560,8 +740,22 @@
       Audio.play('slide');
       render();
       if (isSolved()) {
+        const stars = HappyCore.puzzleStars(moves, par);
+        const seconds = (Date.now() - startTime) / 1000;
+        const speedy = seconds <= par * 1.2;             // silent, generous speed bonus
+        const res = Scores.record('puzzle', level, stars);
+        const hasNext = level + 1 < HappyCore.PUZZLE_LEVELS.length && level + 1 <= Scores.unlocked('puzzle');
         setStatus('You fixed the picture! 🎉');
-        Win.show('You did it!', `Solved in ${moves} moves! 🌟`, shuffle);
+        Win.show({
+          title: 'You did it!',
+          sub: res.unlockedNew
+            ? 'Level ' + (level + 1) + ' done — Level ' + (level + 2) + ' unlocked! 🔓'
+            : 'Solved in ' + moves + ' moves! 🌟',
+          stars: stars,
+          speedy: speedy,
+          next: hasNext ? { cb: () => startLevel(level + 1) } : null,
+          again: { cb: shuffle }
+        });
       }
     }
 
@@ -636,18 +830,516 @@
     }
 
     function init() {
+      level = Scores.unlocked('puzzle');   // resume at the furthest unlocked level
+      N = HappyCore.PUZZLE_LEVELS[level].size; BLANK = N * N - 1;
       board = HappyCore.puzzleSolved(N);
+      $('#puzzle-level').addEventListener('click', openLevels);
       $('#puzzle-pic').addEventListener('click', nextPicture);
       $('#puzzle-numbers').addEventListener('click', toggleNumbers);
       $('#puzzle-shuffle').addEventListener('click', requestNew);
       $('#puzzle-numbers').setAttribute('aria-pressed', String(settings.puzzleNumbers));
       boardEl.addEventListener('keydown', onKey);
       boardEl.tabIndex = 0;
-      render();
-      shuffle();   // start ready-to-play
+      startLevel(level);   // sizes the board and starts ready-to-play
     }
 
     return { init };
+  })();
+
+  /* ========================== 8c. Math Quest ========================== */
+  // Adaptive times-tables / division fluency game. All pedagogy lives in the pure
+  // MathCore engine (math-core.js); this controller is just DOM + input + flow,
+  // reusing Audio, Confetti, Win and Store like the other games.
+  const MathGame = (function () {
+    const M = window.MathCore;
+    const stageEl  = $('#math-stage');
+    const statusEl = $('#math-status');
+    const KEYS = { facts: 'ht_math_facts', profile: 'ht_math_profile', streak: 'ht_math_streak' };
+    const SESSION_LEN = 10;
+
+    let facts = [];
+    let profile = { placed: false, allowDivision: false, bosses: {}, bestSpeedMs: 0 };
+    let streak = { days: 0, last: '' };
+
+    let session = null;                 // active placement/play session
+    let curFact = null, curQ = null;    // current fact record + built question
+    let qStart = 0, answered = false, entry = '', lastId = null, wired = false;
+
+    function now() { return Date.now(); }
+    function setStatus(m) { statusEl.textContent = m; }
+    function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+    /* ---- persistence (local-only, like the rest of HappyTiles) ---- */
+    function load() {
+      try {
+        const raw = Store.get(KEYS.facts, '');
+        facts = raw ? JSON.parse(raw) : M.createInitialState();
+        if (!facts || !facts.length) facts = M.createInitialState();
+      } catch (e) { facts = M.createInitialState(); }
+      try {
+        const p = JSON.parse(Store.get(KEYS.profile, '{}'));
+        if (p && typeof p === 'object') {
+          profile = {
+            placed: !!p.placed, allowDivision: !!p.allowDivision,
+            bosses: (p.bosses && typeof p.bosses === 'object') ? p.bosses : {},
+            bestSpeedMs: p.bestSpeedMs || 0
+          };
+        }
+      } catch (e) { /* keep defaults */ }
+      try {
+        const s = JSON.parse(Store.get(KEYS.streak, '{}'));
+        if (s && typeof s === 'object') streak = { days: s.days || 0, last: s.last || '' };
+      } catch (e) { /* keep defaults */ }
+    }
+    function saveFacts()   { Store.set(KEYS.facts, JSON.stringify(facts)); }
+    function saveProfile() { Store.set(KEYS.profile, JSON.stringify(profile)); }
+    function saveStreak()  { Store.set(KEYS.streak, JSON.stringify(streak)); }
+
+    /* ---- home-dashboard hooks (called by renderHome) ---- */
+    function homeStars() { return M.summary(facts, now()).fluent; }
+    function masteredText() { const s = M.summary(facts, now()); return s.fluent + '/' + s.total; }
+
+    /* ---- toolbar ---- */
+    function syncProgress() { $('#math-mastered').textContent = masteredText(); }
+    function syncOps() {
+      const btn = $('#math-ops');
+      btn.setAttribute('aria-pressed', String(profile.allowDivision));
+      btn.innerHTML = '<span aria-hidden="true">➗</span> ' + (profile.allowDivision ? 'Division: on' : 'Division: off');
+    }
+    function toggleOps() { profile.allowDivision = !profile.allowDivision; saveProfile(); syncOps(); Audio.play('tap'); }
+
+    /* ---- start / menu ---- */
+    function renderStart() {
+      syncProgress();
+      const s = M.summary(facts, now());
+      if (!profile.placed) {
+        stageEl.innerHTML =
+          '<div class="math-panel">' +
+            '<div class="math-big-emoji" aria-hidden="true">🧠✨</div>' +
+            '<h2 class="math-h">Let’s find your level!</h2>' +
+            '<p class="math-p">Answer a few questions so the game knows what to practice. ' +
+              'No worries if some are tricky — just give your best guess!</p>' +
+            '<button class="pill-btn pill-primary math-go" id="math-start-place" type="button">Start ▶️</button>' +
+          '</div>';
+        $('#math-start-place').addEventListener('click', startPlacement);
+        setStatus('Tip: tap the answer you think is right.');
+        return;
+      }
+      const canSpeed = s.fluent >= 4;
+      let readyBoss = null;
+      const ws = M.worlds(facts);
+      for (let i = 0; i < ws.length; i++) { if (ws[i].bossReady && !profile.bosses[ws[i].factor]) { readyBoss = ws[i]; break; } }
+      const bestChip = profile.bestSpeedMs ? '<span class="math-chip">⚡ best ' + (profile.bestSpeedMs / 1000).toFixed(1) + 's</span>' : '';
+      stageEl.innerHTML =
+        '<div class="math-panel">' +
+          '<div class="math-big-emoji" aria-hidden="true">🚀</div>' +
+          '<h2 class="math-h">Ready to play?</h2>' +
+          '<div class="math-stats">' +
+            '<span class="math-chip">⭐ ' + s.fluent + ' mastered</span>' +
+            '<span class="math-chip">🔥 ' + streak.days + ' day streak</span>' + bestChip +
+          '</div>' +
+          '<div class="math-actions">' +
+            '<button class="pill-btn pill-primary math-go" id="math-play" type="button">Quick Play ▶️</button>' +
+            (canSpeed ? '<button class="pill-btn math-go" id="math-speed" type="button">⚡ Speed Round</button>' : '') +
+            (readyBoss ? '<button class="pill-btn math-go math-boss-btn" id="math-boss" type="button">👾 Boss: ' + readyBoss.label + '</button>' : '') +
+            '<button class="pill-btn math-go" id="math-map" type="button">🗺️ World Map</button>' +
+          '</div>' +
+          '<button class="math-parent-link" id="math-parent" type="button">📊 For grown-ups</button>' +
+        '</div>';
+      $('#math-play').addEventListener('click', function () { startSession('mixed'); });
+      if (canSpeed) $('#math-speed').addEventListener('click', function () { startSession('speed'); });
+      if (readyBoss) $('#math-boss').addEventListener('click', function () { startBoss(readyBoss.factor); });
+      $('#math-map').addEventListener('click', renderMap);
+      $('#math-parent').addEventListener('click', renderDashboard);
+      setStatus(readyBoss ? ('A Boss is ready in the ' + readyBoss.label + ' world! 👾')
+                          : (s.due > 0 ? (s.due + ' facts are ready to review!') : 'Let’s learn something new! 🌟'));
+    }
+
+    /* ---- world map (meta-progression) ---- */
+    const WORLD_EMOJI = { 2: '🐣', 3: '🌱', 4: '🐠', 5: '⭐', 6: '🦋', 7: '🌈', 8: '🚀', 9: '🪐', 10: '🌟' };
+    function renderMap() {
+      const ws = M.worlds(facts);
+      let tiles = '';
+      for (let i = 0; i < ws.length; i++) {
+        const w = ws[i];
+        const pct = w.total ? Math.round((w.mastered / w.total) * 100) : 0;
+        const beaten = !!profile.bosses[w.factor];
+        const state = w.complete ? 'complete' : (w.started ? 'started' : 'locked');
+        const face = w.complete ? '🏆' : (w.started ? WORLD_EMOJI[w.factor] : '🔒');
+        tiles +=
+          '<div class="world-tile world-' + state + '">' +
+            '<div class="world-emoji" aria-hidden="true">' + face + '</div>' +
+            '<div class="world-label">' + w.label + '</div>' +
+            '<div class="world-bar"><span style="width:' + pct + '%"></span></div>' +
+            '<div class="world-count">' + w.mastered + '/' + w.total + (beaten && !w.complete ? ' ✔' : '') + '</div>' +
+            (w.bossReady && !beaten ? '<button class="world-boss" type="button" data-f="' + w.factor + '">👾 Boss</button>' : '') +
+          '</div>';
+      }
+      stageEl.innerHTML =
+        '<div class="math-panel math-map-panel">' +
+          '<h2 class="math-h">🗺️ Your Worlds</h2>' +
+          '<p class="math-p">Master a table to grow your map. Beat its Boss to earn a 🏆!</p>' +
+          '<div class="world-grid">' + tiles + '</div>' +
+          '<button class="pill-btn math-go" id="math-map-back" type="button">⬅️ Back</button>' +
+        '</div>';
+      $('#math-map-back').addEventListener('click', renderStart);
+      $$('#math-stage .world-boss').forEach(function (b) {
+        b.addEventListener('click', function () { startBoss(parseInt(b.dataset.f, 10)); });
+      });
+      setStatus('');
+    }
+
+    function startBoss(factor) {
+      Audio.play('tap');
+      const ids = M.worldFacts(facts, factor).map(function (f) { return f.id; });
+      session = { type: 'boss', factor: factor, mode: 'mixed', ids: ids, idx: 0, correct: 0, times: [],
+                  rng: M.makeRng((now() & 0xffffff) || 1), newFact: null, newReps: 0, len: Math.max(8, ids.length * 2) };
+      lastId = null;
+      nextStep();
+    }
+
+    /* ---- parent dashboard (offline, read-only insights) ---- */
+    const STAGE_CLASS = ['st-new', 'st-learn', 'st-review', 'st-fluent'];
+    const STAGE_NAME = ['Not started', 'Learning', 'Reviewing', 'Mastered'];
+
+    function buildHeatmap() {
+      const F = M.FACTORS;
+      let h = '<div class="heat" style="grid-template-columns:repeat(' + (F.length + 1) + ',1fr)">';
+      h += '<div class="heat-corner" aria-hidden="true">×</div>';
+      for (let c = 0; c < F.length; c++) { h += '<div class="heat-head">' + F[c] + '</div>'; }
+      for (let r = 0; r < F.length; r++) {
+        h += '<div class="heat-head">' + F[r] + '</div>';
+        for (let c = 0; c < F.length; c++) {
+          const f = M.findFact(facts, M.factId(F[r], F[c]));
+          h += '<div class="heat-cell ' + STAGE_CLASS[f.stage] + '" title="' + F[r] + '×' + F[c] + '=' + f.p +
+               ' (' + STAGE_NAME[f.stage] + ')">' + f.p + '</div>';
+        }
+      }
+      return h + '</div>';
+    }
+
+    function factList(list, fmt) {
+      if (!list.length) { return '<li class="dash-empty">— none yet —</li>'; }
+      let h = '';
+      for (let i = 0; i < list.length; i++) {
+        const f = list[i];
+        h += '<li><span class="dash-fact">' + f.a + '×' + f.b + '</span>' + fmt(f) + '</li>';
+      }
+      return h;
+    }
+
+    function renderDashboard() {
+      Audio.play('tap');
+      const s = M.summary(facts, now());
+      const ins = M.insights(facts, 5);
+      const best = profile.bestSpeedMs ? (profile.bestSpeedMs / 1000).toFixed(1) + 's' : '—';
+      stageEl.innerHTML =
+        '<div class="math-panel dash-panel">' +
+          '<h2 class="math-h">📊 Progress</h2>' +
+          '<div class="dash-stats">' +
+            '<div class="dash-stat"><b>' + s.fluent + '</b><span>mastered</span></div>' +
+            '<div class="dash-stat"><b>' + (s.learning + s.reviewing) + '</b><span>in progress</span></div>' +
+            '<div class="dash-stat"><b>' + s.newCount + '</b><span>to learn</span></div>' +
+            '<div class="dash-stat"><b>' + streak.days + '</b><span>day streak</span></div>' +
+            '<div class="dash-stat"><b>' + best + '</b><span>best speed</span></div>' +
+          '</div>' +
+          buildHeatmap() +
+          '<div class="dash-legend">' +
+            '<span><i class="sw st-new"></i>Not started</span>' +
+            '<span><i class="sw st-learn"></i>Learning</span>' +
+            '<span><i class="sw st-review"></i>Reviewing</span>' +
+            '<span><i class="sw st-fluent"></i>Mastered</span>' +
+          '</div>' +
+          '<div class="dash-lists">' +
+            '<div class="dash-col"><h3>⚡ Speed up</h3><ul>' +
+              factList(ins.slowest, function (f) { return '<span class="dash-val">' + (f.avgMs / 1000).toFixed(1) + 's</span>'; }) +
+            '</ul></div>' +
+            '<div class="dash-col"><h3>🎯 Needs practice</h3><ul>' +
+              factList(ins.focus, function (f) { return '<span class="dash-val">' + STAGE_NAME[f.stage] + '</span>'; }) +
+            '</ul></div>' +
+          '</div>' +
+          '<div class="dash-actions">' +
+            '<button class="pill-btn math-go" id="dash-back" type="button">⬅️ Back</button>' +
+            '<button class="pill-btn dash-reset" id="dash-reset" type="button">♻️ Reset progress</button>' +
+          '</div>' +
+        '</div>';
+      $('#dash-back').addEventListener('click', renderStart);
+      $('#dash-reset').addEventListener('click', function () {
+        Confirm.ask({
+          title: 'Reset all math progress?',
+          sub: 'This erases mastery, streak and worlds for Math Quest. It cannot be undone.',
+          yes: 'Yes, reset', onYes: resetProgress
+        });
+      });
+      setStatus('Tip: hover a square to see the fact.');
+    }
+
+    function resetProgress() {
+      Store.set(KEYS.facts, JSON.stringify(M.createInitialState()));
+      Store.set(KEYS.profile, JSON.stringify({ placed: false, allowDivision: profile.allowDivision, bosses: {}, bestSpeedMs: 0 }));
+      Store.set(KEYS.streak, JSON.stringify({ days: 0, last: '' }));
+      load();
+      syncProgress(); syncOps();
+      renderStart();
+      setStatus('Progress reset — placement will run next time.');
+    }
+
+    /* ---- placement ---- */
+    function startPlacement() {
+      Audio.play('tap');
+      const rng = M.makeRng((now() & 0xffffff) || 1);
+      session = { type: 'placement', probes: M.placementProbes(rng), idx: 0, results: [], rng: rng };
+      nextPlacement();
+    }
+    function nextPlacement() {
+      const p = session.probes[session.idx];
+      if (!p) { finishPlacement(); return; }
+      curFact = { id: p.id, a: p.a, b: p.b, p: p.a * p.b, stage: M.STAGE.NEW };
+      curQ = M.makeQuestion(curFact, { rng: session.rng, allowDivision: false, forceInput: 'choice' });
+      answered = false;
+      renderQuestion(curQ, session.idx + 1, session.probes.length, 'Quick check');
+    }
+    function finishPlacement() {
+      M.applyPlacement(facts, session.results, now());
+      profile.placed = true; saveFacts(); saveProfile();
+      session = null;
+      const s = M.summary(facts, now());
+      syncProgress();
+      stageEl.innerHTML =
+        '<div class="math-panel">' +
+          '<div class="math-big-emoji" aria-hidden="true">🎯</div>' +
+          '<h2 class="math-h">All set!</h2>' +
+          '<p class="math-p">You already know <strong>' + s.fluent + '</strong> facts. ' +
+            'We’ll keep those speedy and learn new ones together!</p>' +
+          '<button class="pill-btn pill-primary math-go" id="math-begin" type="button">Let’s play! ▶️</button>' +
+        '</div>';
+      $('#math-begin').addEventListener('click', function () { startSession('mixed'); });
+      setStatus('');
+    }
+
+    /* ---- a play session ---- */
+    function startSession(mode) {
+      Audio.play('tap');
+      session = { type: 'play', mode: mode, idx: 0, correct: 0, times: [],
+                  rng: M.makeRng((now() & 0xffffff) || 1), newFact: null, newReps: 0 };
+      lastId = null;
+      if (mode === 'mixed') {
+        const nf = M.pickNewFact(facts);     // introduce one new fact with a strategy card
+        if (nf) { session.newFact = nf; renderStrategy(nf); return; }
+      }
+      nextStep();
+    }
+
+    function renderStrategy(fact) {
+      const s = M.strategyFor(fact.a, fact.b);
+      // The whole fact family — so × and ÷ are learned as one idea. Deduped so a
+      // square (e.g. 8×8) shows its two real statements, not four near-identical ones.
+      let fam = '';
+      if (profile.allowDivision) {
+        const parts = [
+          fact.a + '×' + fact.b + '=' + fact.p,
+          fact.b + '×' + fact.a + '=' + fact.p,
+          fact.p + '÷' + fact.a + '=' + fact.b,
+          fact.p + '÷' + fact.b + '=' + fact.a
+        ];
+        const uniq = parts.filter(function (p, i) { return parts.indexOf(p) === i; });
+        fam = '<div class="math-family" aria-hidden="true"><span>' + uniq.join('</span><span>') + '</span></div>';
+      }
+      stageEl.innerHTML =
+        '<div class="math-panel math-strategy">' +
+          '<div class="math-new-badge">✨ New skill!</div>' +
+          '<div class="math-prompt math-prompt-lg">' + fact.a + ' × ' + fact.b + ' = ' + fact.p + '</div>' +
+          '<h3 class="math-strat-title">' + s.title + '</h3>' +
+          '<p class="math-p">' + s.tip + '</p>' + fam +
+          '<button class="pill-btn pill-primary math-go" id="math-got" type="button">Got it! ▶️</button>' +
+        '</div>';
+      $('#math-got').addEventListener('click', function () { Audio.play('tap'); nextStep(); });
+      setStatus('Learn the trick, then try it!');
+    }
+
+    function sessionLen() { return session.len || SESSION_LEN; }
+    function nextStep() {
+      if (session.idx >= sessionLen()) { finishSession(); return; }
+      session.idx++;
+      let fact;
+      if (session.newFact && session.newReps < 2) {        // drill a freshly taught fact first
+        fact = session.newFact; session.newReps++;
+      } else {
+        fact = M.selectNext(facts, { mode: session.mode, now: now(), rng: session.rng, excludeId: lastId, ids: session.ids });
+        if (!fact && session.ids) fact = M.findFact(facts, session.ids[0]);   // boss fallback
+        if (!fact) fact = session.newFact || M.findFact(facts, M.teachOrder()[0]);
+      }
+      curFact = fact;
+      const allowDiv = profile.allowDivision && fact.stage >= M.STAGE.REVIEWING;
+      curQ = M.makeQuestion(fact, { rng: session.rng, allowDivision: allowDiv });
+      answered = false;
+      const label = session.type === 'boss' ? '👾 Boss'
+                  : (session.mode === 'speed') ? '⚡ Speed'
+                  : (fact === session.newFact ? '✨ New' : 'Practice');
+      renderQuestion(curQ, session.idx, sessionLen(), label);
+    }
+
+    function finishSession() {
+      const total = sessionLen(), correct = session.correct;
+      const type = session.type, factor = session.factor;
+      const stars = M.sessionStars(correct, total);
+      const times = session.times.slice().sort(function (a, b) { return a - b; });
+      const median = times.length ? times[Math.floor(times.length / 2)] : 99999;
+      const speedy = median <= M.FAST_MS && correct >= Math.ceil(total * 0.7);
+      bumpStreak();
+      saveFacts();
+
+      let extra = '', bossWon = false, newRecord = false;
+      if (type === 'boss') {
+        bossWon = correct >= Math.ceil(total * 0.83);     // ~10 of 12
+        if (bossWon) { profile.bosses[factor] = true; saveProfile(); extra = ' · 🏆 Boss beaten!'; }
+      }
+      if (type === 'speed' && correct >= Math.ceil(total * 0.7)) {
+        if (!profile.bestSpeedMs || median < profile.bestSpeedMs) { profile.bestSpeedMs = median; saveProfile(); newRecord = true; }
+      }
+
+      session = null;
+      const s = M.summary(facts, now());
+      syncProgress();
+      setStatus(type === 'boss' ? (bossWon ? 'Boss beaten! 🏆' : 'Good try — challenge again!') : 'Session done! 🎉');
+      Win.show({
+        title: type === 'boss' ? (bossWon ? 'Boss beaten! 🏆' : 'So close!') : 'Great work!',
+        sub: correct + ' out of ' + total + ' right' +
+             (newRecord ? ' · ⚡ New speed record!' : '') + extra +
+             (type !== 'boss' && !newRecord ? ' · ⭐ ' + s.fluent + ' mastered' : ''),
+        stars: stars,
+        speedy: speedy || newRecord,
+        next: null,
+        again: { cb: function () { if (type === 'boss') startBoss(factor); else startSession(type === 'speed' ? 'speed' : 'mixed'); } }
+      });
+    }
+
+    function bumpStreak() {
+      const today = new Date().toDateString();
+      if (streak.last === today) return;                   // already counted today
+      const y = new Date(Date.now() - 86400000).toDateString();
+      streak.days = (streak.last === y) ? (streak.days + 1) : 1;
+      streak.last = today;
+      saveStreak();
+    }
+
+    /* ---- question rendering & input ---- */
+    function progressDots(n, total) {
+      let h = '<span class="math-dots" aria-label="Question ' + n + ' of ' + total + '">';
+      for (let i = 1; i <= total; i++) {
+        h += '<span class="math-dot' + (i < n ? ' done' : (i === n ? ' now' : '')) + '"></span>';
+      }
+      return h + '</span>';
+    }
+    function padKey(d) { return '<button class="math-key" type="button" data-k="' + d + '">' + d + '</button>'; }
+
+    function renderQuestion(q, stepNum, stepTotal, label) {
+      let inputHtml;
+      if (q.inputMode === 'choice') {
+        inputHtml = '<div class="math-choices" id="math-choices">';
+        for (let i = 0; i < q.choices.length; i++) {
+          inputHtml += '<button class="math-choice" type="button" data-v="' + q.choices[i] + '">' + q.choices[i] + '</button>';
+        }
+        inputHtml += '</div>';
+      } else {
+        inputHtml =
+          '<div class="math-entry" id="math-entry">0</div>' +
+          '<div class="math-pad" id="math-pad">' +
+            padKey('1') + padKey('2') + padKey('3') +
+            padKey('4') + padKey('5') + padKey('6') +
+            padKey('7') + padKey('8') + padKey('9') +
+            '<button class="math-key math-key-fn" type="button" data-k="back" aria-label="Delete">⌫</button>' +
+            padKey('0') +
+            '<button class="math-key math-key-go" type="button" data-k="enter" aria-label="Check answer">✓</button>' +
+          '</div>';
+      }
+      stageEl.innerHTML =
+        '<div class="math-q">' +
+          '<div class="math-q-top">' + progressDots(stepNum, stepTotal) +
+            '<span class="math-q-label">' + (label || '') + '</span></div>' +
+          '<div class="math-prompt" id="math-prompt">' + q.prompt + ' = ?</div>' +
+          inputHtml +
+          '<div class="math-feedback" id="math-feedback" aria-live="assertive"></div>' +
+        '</div>';
+
+      if (q.inputMode === 'choice') {
+        $$('#math-choices .math-choice').forEach(function (b) {
+          b.addEventListener('click', function () { onAnswer(parseInt(b.dataset.v, 10), b); });
+        });
+      } else {
+        bindPad();
+      }
+      qStart = now();
+    }
+
+    function bindPad() {
+      entry = '';
+      const display = $('#math-entry');
+      $$('#math-pad .math-key').forEach(function (b) {
+        b.addEventListener('click', function () {
+          const k = b.dataset.k;
+          if (k === 'enter') { if (entry.length) onAnswer(parseInt(entry, 10), null); return; }
+          if (k === 'back') { entry = entry.slice(0, -1); }
+          else if (entry.length < 3) { entry += k; }
+          Audio.play('tap');
+          display.textContent = entry.length ? entry : '0';
+        });
+      });
+    }
+
+    function onAnswer(value, btn) {
+      if (answered) return;
+      answered = true;
+      const latency = now() - qStart;
+      const correct = value === curQ.answer;
+
+      if (session && session.type === 'placement') {
+        session.results.push({ a: curFact.a, b: curFact.b, correct: correct, ms: latency });
+        showFeedback(correct, btn, false);
+        window.setTimeout(function () { session.idx++; nextPlacement(); }, correct ? 550 : 950);
+        return;
+      }
+
+      const rec = M.findFact(facts, curQ.id);
+      const info = M.grade(rec, correct, latency, now());
+      saveFacts();
+      if (correct) session.correct++;
+      session.times.push(latency);
+      lastId = curQ.id;
+      showFeedback(correct, btn, info.becameFluent);
+      syncProgress();
+      window.setTimeout(nextStep, correct ? 650 : 1350);
+    }
+
+    function showFeedback(correct, btn, becameFluent) {
+      const fb = $('#math-feedback');
+      if (correct) {
+        Audio.play('place');
+        if (btn) btn.classList.add('is-correct');
+        fb.textContent = becameFluent ? 'Mastered! ⭐' : pick(['Yes! ✅', 'Nice! 🎉', 'Correct! 🌟', 'Great! 👏']);
+        fb.className = 'math-feedback is-good';
+      } else {
+        Audio.play('error');
+        if (btn) btn.classList.add('is-wrong');
+        fb.textContent = curQ.prompt + ' = ' + curQ.answer;
+        fb.className = 'math-feedback is-bad';
+        $$('#math-choices .math-choice').forEach(function (b) {
+          if (parseInt(b.dataset.v, 10) === curQ.answer) b.classList.add('is-correct');
+        });
+      }
+      $$('#math-choices .math-choice, #math-pad .math-key').forEach(function (b) { b.disabled = true; });
+    }
+
+    /* ---- entry point (called by Nav on every visit) ---- */
+    function enter() {
+      if (!wired) { wired = true; $('#math-ops').addEventListener('click', toggleOps); }
+      session = null; answered = false;
+      syncOps(); syncProgress(); renderStart();
+    }
+
+    load();   // load once at startup so the home dashboard can show progress
+
+    return { enter: enter, homeStars: homeStars, masteredText: masteredText };
   })();
 
   /* ========================== 9. Boot ========================== */
