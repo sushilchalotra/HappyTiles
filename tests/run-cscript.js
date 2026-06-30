@@ -17,9 +17,10 @@ function readFile(p) {
 // Load the game cores and the shared test suite into this scope.
 eval(readFile(scriptDir + '\\..\\src\\games-core.js'));
 eval(readFile(scriptDir + '\\..\\src\\math-core.js'));
+eval(readFile(scriptDir + '\\..\\src\\chess-core.js'));
 eval(readFile(scriptDir + '\\smoke-tests.js'));
 
-var res = runHappyTests(HappyCore, MathCore);
+var res = runHappyTests(HappyCore, MathCore, ChessCore);
 
 for (var i = 0; i < res.results.length; i++) {
   var r = res.results[i];

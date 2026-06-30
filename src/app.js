@@ -399,7 +399,7 @@
   // Home dashboard: headline star total + per-game progress. Every mastered math
   // fact counts as a star too, so the headline reflects all three games.
   function renderHome() {
-    $('#total-stars').textContent = String(Scores.totalStars() + MathGame.homeStars());
+    $('#total-stars').textContent = String(Scores.totalStars() + MathGame.homeStars() + Chess.homeStars());
     function fill(game, elId) {
       const lvl = Scores.unlocked(game) + 1;     // human-facing furthest level
       $(elId).innerHTML = 'Level ' + lvl + ' · ' + Scores.gameStars(game) + '/' + Scores.maxStars(game) +
@@ -408,10 +408,11 @@
     fill('sudoku', '#sudoku-progress');
     fill('puzzle', '#puzzle-progress');
     $('#math-progress').innerHTML = '🧠 ' + MathGame.masteredText() + ' facts <span class="star is-on">★</span>';
+    $('#chess-progress').innerHTML = '♟️ ' + Chess.doneText() + ' lessons <span class="star is-on">★</span>';
   }
 
   const Nav = (function () {
-    const views = { home: $('#view-home'), sudoku: $('#view-sudoku'), puzzle: $('#view-puzzle'), math: $('#view-math') };
+    const views = { home: $('#view-home'), sudoku: $('#view-sudoku'), puzzle: $('#view-puzzle'), math: $('#view-math'), chess: $('#view-chess') };
     const started = { sudoku: false, puzzle: false };
 
     function go(name) {
@@ -429,6 +430,7 @@
       if (name === 'sudoku' && !started.sudoku) { Sudoku.init(); started.sudoku = true; }
       if (name === 'puzzle' && !started.puzzle) { Puzzle.init(); started.puzzle = true; }
       if (name === 'math') MathGame.enter();   // fresh start screen on every visit
+      if (name === 'chess') Chess.enter();
     }
 
     function route() { go((location.hash || '#home').slice(1)); }
@@ -1340,6 +1342,355 @@
     load();   // load once at startup so the home dashboard can show progress
 
     return { enter: enter, homeStars: homeStars, masteredText: masteredText };
+  })();
+
+  /* ========================== 8d. Chess Academy ========================== */
+  // A structured chess-learning game. All rules/AI live in the pure ChessCore
+  // engine (chess-core.js); this controller is DOM + input + lesson flow, reusing
+  // Audio, Confetti, Win and Store like the other games.
+  const Chess = (function () {
+    const C = window.ChessCore;
+    const stageEl = $('#chess-stage');
+    const statusEl = $('#chess-status');
+    const KEYS = { progress: 'ht_chess_progress', stars: 'ht_chess_stars' };
+    // Glyphs are used only for the lesson-path icons (dark text on white — fine).
+    const GLYPH = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' };
+
+    // On the BOARD we draw inline-SVG pieces so White vs Black is unmistakable on
+    // every device (Unicode chess glyphs render as fixed-color emoji on some fonts).
+    const PC_BASE = '<path d="M10 41 L35 41 L32 35 L13 35 Z"/>';
+    const PC_PATHS = {
+      P: '<circle cx="22.5" cy="13" r="5"/><path d="M16.5 34 C16.5 26 28.5 26 28.5 34 Z"/>' + PC_BASE,
+      R: '<path d="M13 12 h19 v5 h-3 v-2 h-3.5 v2 h-5 v-2 h-3.5 v2 h-1 z"/><path d="M15.5 17 h14 l-1.5 17 h-11 z"/>' + PC_BASE,
+      B: '<circle cx="22.5" cy="8" r="2.4"/><path d="M22.5 10 C30 16 29 27 22.5 31 C16 27 15 16 22.5 10 Z"/>' + PC_BASE,
+      N: '<path d="M14 34 C13 24 17 15 25 12 C23.5 10.5 22.5 9 23 7.5 L27.5 9 C33.5 12 35 21 33 34 Z"/>',
+      Q: '<path d="M9 31 L7 15 L15 21 L22.5 11 L30 21 L38 15 L36 31 Z"/><circle cx="7" cy="14" r="2.2"/><circle cx="22.5" cy="10" r="2.2"/><circle cx="38" cy="14" r="2.2"/>' + PC_BASE,
+      K: '<path d="M21 5 h3 v3 h3 v3 h-3 v3 h-3 v-3 h-3 v-3 h3 z"/><path d="M13 31 C12.5 21 32.5 21 32 31 Z"/>' + PC_BASE
+    };
+
+    // Flatten the curriculum into one ordered list of lessons.
+    const LESSONS = [];
+    (function () {
+      const U = C.CHESS_UNITS;
+      for (let u = 0; u < U.length; u++) {
+        for (let k = 0; k < U[u].lessons.length; k++) {
+          const l = U[u].lessons[k];
+          LESSONS.push({ unit: U[u].title, unitEmoji: U[u].emoji, index: LESSONS.length,
+            id: l.id, title: l.title, type: l.type, tip: l.tip,
+            piece: l.piece, start: l.start, coins: l.coins, fen: l.fen, goalRank: l.goalRank, botLevel: l.botLevel });
+        }
+      }
+    })();
+
+    let unlocked = 0, starMap = {}, wired = false, view = null;
+
+    function load() {
+      unlocked = parseInt(Store.get(KEYS.progress, '0'), 10) || 0;
+      try { const m = JSON.parse(Store.get(KEYS.stars, '{}')); starMap = (m && typeof m === 'object') ? m : {}; }
+      catch (e) { starMap = {}; }
+    }
+    function save() { Store.set(KEYS.progress, String(unlocked)); Store.set(KEYS.stars, JSON.stringify(starMap)); }
+
+    function homeStars() { let t = 0; for (const k in starMap) { t += starMap[k]; } return t; }
+    function doneText() { let d = 0; for (const k in starMap) { if (starMap[k] > 0) { d++; } } return d + '/' + LESSONS.length; }
+    function syncPill() { $('#chess-done').textContent = doneText(); }
+    function setStatus(m) { statusEl.textContent = m; }
+
+    function complete(idx, stars) {
+      const id = LESSONS[idx].id;
+      if (stars > (starMap[id] || 0)) { starMap[id] = stars; }
+      if (idx === unlocked && unlocked < LESSONS.length - 1) { unlocked = idx + 1; }
+      save(); syncPill();
+    }
+
+    /* ---- helpers ---- */
+    function contains(arr, x) { for (let i = 0; i < arr.length; i++) { if (arr[i] === x) { return true; } } return false; }
+    function destSquares(moves) { const out = [], seen = {}; for (let i = 0; i < moves.length; i++) { const t = moves[i].to; if (!seen[t]) { seen[t] = true; out.push(t); } } return out; }
+    function pieceGlyph(p) {
+      const t = C.typeOf(p), white = C.colorOf(p) === C.W;
+      const fill = white ? '#ffffff' : '#2b2138';
+      const stroke = white ? '#2b2138' : '#0c0714';
+      let body = PC_PATHS[t];
+      if (t === 'N') { body += '<circle cx="27" cy="16" r="1.4" fill="' + stroke + '" stroke="none"/>' + PC_BASE; }
+      return '<svg class="cp-svg" viewBox="0 0 45 45" fill="' + fill + '" stroke="' + stroke +
+             '" stroke-width="1.7" stroke-linejoin="round">' + body + '</svg>';
+    }
+    function lessonIcon(L) {
+      if (L.type === 'piece' || L.type === 'promote') { return GLYPH[L.piece]; }
+      if (L.type === 'puzzle') { return '♚'; }
+      if (L.type === 'play') { return '♞'; }
+      return '💡';
+    }
+
+    /* ---- the academy path ---- */
+    function renderPath() {
+      syncPill();
+      let html = '<div class="chess-path">';
+      let lastUnit = '';
+      for (let i = 0; i < LESSONS.length; i++) {
+        const L = LESSONS[i];
+        if (L.unit !== lastUnit) { html += '<div class="chess-unit">' + L.unitEmoji + ' ' + L.unit + '</div>'; lastUnit = L.unit; }
+        const locked = i > unlocked;
+        const stars = starMap[L.id] || 0;
+        html += '<button class="chess-node' + (locked ? ' is-locked' : '') + '" type="button" data-i="' + i + '"' + (locked ? ' disabled' : '') + '>' +
+                  '<span class="chess-node-ic">' + (locked ? '🔒' : lessonIcon(L)) + '</span>' +
+                  '<span class="chess-node-t">' + L.title + '</span>' +
+                  '<span class="chess-node-s">' + starsMarkup(stars, 3) + '</span>' +
+                '</button>';
+      }
+      html += '</div>';
+      stageEl.innerHTML = html;
+      $$('#chess-stage .chess-node').forEach(function (b) { b.addEventListener('click', function () { openLesson(parseInt(b.dataset.i, 10)); }); });
+      setStatus('Pick a lesson to start! ♟️');
+    }
+
+    function openLesson(idx) {
+      if (idx > unlocked) { return; }
+      Audio.play('tap');
+      const L = LESSONS[idx];
+      if (L.type === 'info') { return renderInfo(L); }
+      if (L.type === 'piece') { return startCollect(L); }
+      if (L.type === 'promote') { return startPromote(L); }
+      if (L.type === 'puzzle') { return startPuzzle(L); }
+      if (L.type === 'play') { return startPlay(L); }
+    }
+
+    /* ---- shared board rendering ---- */
+    function lessonShell(title, tip, footer) {
+      stageEl.innerHTML =
+        '<div class="chess-lesson">' +
+          '<div class="chess-l-head">' +
+            '<button class="pill-btn chess-back" id="chess-back" type="button"><span aria-hidden="true">⬅️</span> Lessons</button>' +
+            '<div class="chess-l-title">' + title + '</div>' +
+          '</div>' +
+          '<p class="chess-tip">' + tip + '</p>' +
+          '<div id="chess-board-slot" class="chess-board-slot"></div>' +
+          (footer || '') +
+        '</div>';
+      $('#chess-back').addEventListener('click', renderPath);
+    }
+
+    function paintBoard() {
+      const m = view;
+      let html = '<div class="chess-board" id="chess-board">';
+      for (let r = 7; r >= 0; r--) {
+        for (let f = 0; f < 8; f++) {
+          const sq = r * 16 + f;
+          let cls = 'sq ' + (((r + f) % 2 === 0) ? 'dark' : 'light');
+          if (m.selected === sq) { cls += ' sel'; }
+          if (m.lastFrom === sq || m.lastTo === sq) { cls += ' last'; }
+          if (m.checkSq === sq) { cls += ' check'; }
+          const p = m.board[sq];
+          const isDest = m.dests && contains(m.dests, sq);
+          if (isDest) { cls += p ? ' cap' : ' dest'; }
+          let inner = p ? pieceGlyph(p) : '';
+          if (m.coins && m.coins[sq]) { inner += '<span class="coin" aria-hidden="true">💎</span>'; }
+          html += '<button class="' + cls + '" type="button" data-sq="' + sq + '">' + inner + '</button>';
+        }
+      }
+      html += '</div>';
+      $('#chess-board-slot').innerHTML = html;
+      $$('#chess-board .sq').forEach(function (b) { b.addEventListener('click', function () { m.onSq(parseInt(b.dataset.sq, 10)); }); });
+    }
+
+    function emptyState() { return C.parseFEN('8/8/8/8/8/8/8/8 w - - 0 1'); }
+
+    function finishLesson(L, sub, stars) {
+      complete(L.index, stars);
+      const hasNext = L.index + 1 < LESSONS.length && L.index + 1 <= unlocked;
+      setStatus('Well done! 🎉');
+      Win.show({
+        title: 'Great job!', sub: sub, stars: stars, speedy: false,
+        next: hasNext ? { cb: function () { openLesson(L.index + 1); } } : { cb: renderPath },
+        again: { cb: function () { openLesson(L.index); } }
+      });
+    }
+
+    /* ---- info lesson ---- */
+    function renderInfo(L) {
+      stageEl.innerHTML =
+        '<div class="math-panel chess-info">' +
+          '<div class="math-big-emoji" aria-hidden="true">💡</div>' +
+          '<h2 class="math-h">' + L.title + '</h2>' +
+          '<p class="math-p">' + L.tip + '</p>' +
+          '<div class="math-actions">' +
+            '<button class="pill-btn chess-back2" id="chess-info-back" type="button">⬅️ Lessons</button>' +
+            '<button class="pill-btn pill-primary math-go" id="chess-info-go" type="button">Got it! ▶️</button>' +
+          '</div>' +
+        '</div>';
+      $('#chess-info-back').addEventListener('click', renderPath);
+      $('#chess-info-go').addEventListener('click', function () {
+        Audio.play('place'); complete(L.index, 3);
+        if (L.index + 1 <= unlocked && L.index + 1 < LESSONS.length) { openLesson(L.index + 1); } else { renderPath(); }
+      });
+      setStatus('');
+    }
+
+    /* ---- piece mini-game (collect the gems) ---- */
+    function startCollect(L) {
+      const st = emptyState();
+      st.board[C.sqFromAlg(L.start)] = L.piece;
+      const coins = {}; for (let i = 0; i < L.coins.length; i++) { coins[C.sqFromAlg(L.coins[i])] = true; }
+      const total = L.coins.length;
+      let moves = 0;
+      view = { board: st.board, coins: coins, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: -1, onSq: onSq };
+      lessonShell(L.title, L.tip, '');
+      paintBoard();
+      setStatus('Collect all ' + total + ' 💎!');
+
+      function onSq(sq) {
+        if (view.selected >= 0 && contains(view.dests, sq)) {
+          const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);
+          if (m) {
+            C.makeMove(st, m); moves++;
+            st.turn = C.colorOf(L.piece);   // solo mini-game: it's always the mover's turn
+            if (coins[sq]) { delete coins[sq]; Audio.play('place'); } else { Audio.play('slide'); }
+            view.lastFrom = m.from; view.lastTo = sq; view.selected = -1; view.dests = [];
+            paintBoard();
+            let left = 0; for (const k in coins) { left++; }
+            if (left === 0) {
+              const stars = moves <= total ? 3 : (moves <= total + 2 ? 2 : 1);
+              finishLesson(L, 'You collected them all in ' + moves + ' moves! 💎', stars);
+            } else { setStatus(left + ' 💎 to go · ' + moves + ' moves'); }
+          }
+          return;
+        }
+        if (st.board[sq]) { view.selected = sq; view.dests = destSquares(C.legalMoves(st, sq)); Audio.play('tap'); paintBoard(); }
+        else { view.selected = -1; view.dests = []; paintBoard(); }
+      }
+    }
+
+    /* ---- pawn promotion lesson ---- */
+    function startPromote(L) {
+      const st = C.parseFEN(L.fen);
+      const goalR = L.goalRank - 1;
+      let moves = 0;
+      view = { board: st.board, coins: null, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: -1, onSq: onSq };
+      lessonShell(L.title, L.tip, '');
+      paintBoard();
+      setStatus('March the pawn to the top to promote! 👑');
+
+      function onSq(sq) {
+        if (view.selected >= 0 && contains(view.dests, sq)) {
+          const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);   // Q-promo is first
+          if (m) {
+            C.makeMove(st, m); moves++;
+            Audio.play(m.captured ? 'place' : 'slide');
+            view.lastFrom = m.from; view.lastTo = sq; view.selected = -1; view.dests = [];
+            paintBoard();
+            if (C.rankOf(sq) === goalR) { finishLesson(L, 'Your pawn became a Queen! 👑', 3); }
+          }
+          return;
+        }
+        const p = st.board[sq];
+        if (p && C.colorOf(p) === st.turn) { view.selected = sq; view.dests = destSquares(C.legalMoves(st, sq)); Audio.play('tap'); paintBoard(); }
+        else { view.selected = -1; view.dests = []; paintBoard(); }
+      }
+    }
+
+    /* ---- mate-in-one puzzle ---- */
+    function startPuzzle(L) {
+      const base = C.parseFEN(L.fen);
+      let st = C.cloneState(base);
+      view = { board: st.board, coins: null, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: -1, onSq: onSq };
+      lessonShell(L.title, L.tip, '');
+      paintBoard();
+      setStatus('Find checkmate in one move! ♚');
+
+      function reset() {
+        st = C.cloneState(base);
+        view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; view.checkSq = -1;
+        paintBoard(); setStatus('Find checkmate in one move! ♚');
+      }
+      function onSq(sq) {
+        if (view.selected >= 0 && contains(view.dests, sq)) {
+          const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);
+          if (m) {
+            const mate = C.moveGivesMate(st, m);
+            C.makeMove(st, m);
+            view.lastFrom = m.from; view.lastTo = sq; view.selected = -1; view.dests = [];
+            const k = C.findKing(st.board, st.turn); view.checkSq = (k >= 0 && C.isInCheck(st, st.turn)) ? k : -1;
+            paintBoard();
+            if (mate) { Audio.play('place'); finishLesson(L, 'Checkmate! ♚🏆', 3); }
+            else { Audio.play('error'); setStatus('Good try — that’s not checkmate. Resetting…'); window.setTimeout(reset, 1100); }
+          }
+          return;
+        }
+        const p = st.board[sq];
+        if (p && C.colorOf(p) === st.turn) { view.selected = sq; view.dests = destSquares(C.legalMoves(st, sq)); Audio.play('tap'); paintBoard(); }
+        else { view.selected = -1; view.dests = []; paintBoard(); }
+      }
+    }
+
+    /* ---- play a full game vs the bot ---- */
+    function startPlay(L) {
+      let st = C.parseFEN(C.START_FEN);
+      let over = false;
+      const footer = '<div class="chess-foot"><button class="pill-btn pill-primary" id="chess-newgame" type="button"><span aria-hidden="true">🎲</span> New game</button></div>';
+      view = { board: st.board, coins: null, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: -1, onSq: onSq };
+      lessonShell(L.title, L.tip, footer);
+      paintBoard();
+      setStatus('Your move! You are White ⚪');
+      $('#chess-newgame').addEventListener('click', function () {
+        if (over || confirmCheck()) { restart(); }
+        else { Confirm.ask({ title: 'New game?', sub: 'This game will be lost.', yes: 'Yes, new game', onYes: restart }); }
+      });
+      function confirmCheck() { return st.full <= 1 && st.turn === C.W; }    // nothing meaningful to lose yet
+      function restart() { st = C.parseFEN(C.START_FEN); over = false; view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; view.checkSq = -1; paintBoard(); setStatus('Your move! You are White ⚪'); }
+
+      function refreshCheck() { const k = C.findKing(st.board, st.turn); view.checkSq = (k >= 0 && C.isInCheck(st, st.turn)) ? k : -1; }
+      function endIf() {
+        const s = C.gameStatus(st);
+        if (s === 'checkmate') {
+          over = true;
+          const youWin = st.turn === C.B;                 // side to move is the one checkmated
+          if (youWin) { finishLesson(L, 'Checkmate — you beat the ' + L.title + '! ♚🏆', 3); }
+          else { setStatus('The bot got you this time! 🤖'); Win.show({ title: 'Good game!', sub: 'The bot won — want a rematch?', stars: 0, speedy: false, next: { cb: restart }, again: { cb: restart } }); }
+          return true;
+        }
+        if (s === 'stalemate' || s === 'draw') { over = true; setStatus('It’s a draw! 🤝'); Win.show({ title: 'It’s a draw!', sub: 'Nobody got checkmated.', stars: 1, speedy: false, next: { cb: restart }, again: { cb: restart } }); return true; }
+        return false;
+      }
+      function botMove() {
+        if (over) { return; }
+        setStatus('The bot is thinking… 🤖');
+        window.setTimeout(function () {
+          if (over) { return; }
+          const m = C.bestMove(st, L.botLevel, Math.random);
+          if (!m) { endIf(); return; }
+          C.makeMove(st, m); Audio.play(m.captured ? 'place' : 'slide');
+          view.lastFrom = m.from; view.lastTo = m.to; refreshCheck(); paintBoard();
+          if (!endIf()) { setStatus(view.checkSq >= 0 ? 'Check! Your move ⚪' : 'Your move ⚪'); }
+        }, 450);
+      }
+      function onSq(sq) {
+        if (over || st.turn !== C.W) { return; }
+        if (view.selected >= 0 && contains(view.dests, sq)) {
+          const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);   // auto-queen (Q-promo first)
+          if (m) {
+            C.makeMove(st, m); Audio.play(m.captured ? 'place' : 'slide');
+            view.lastFrom = m.from; view.lastTo = m.to; view.selected = -1; view.dests = []; refreshCheck(); paintBoard();
+            if (!endIf()) { botMove(); }
+          }
+          return;
+        }
+        const p = st.board[sq];
+        if (p && C.colorOf(p) === C.W) { view.selected = sq; view.dests = destSquares(C.legalMoves(st, sq)); Audio.play('tap'); paintBoard(); }
+        else { view.selected = -1; view.dests = []; paintBoard(); }
+      }
+    }
+
+    /* ---- entry point ---- */
+    function enter() {
+      if (!wired) { wired = true; }
+      view = null;
+      syncPill();
+      renderPath();
+    }
+
+    load();   // load progress at startup for the home dashboard
+
+    return { enter: enter, homeStars: homeStars, doneText: doneText };
   })();
 
   /* ========================== 9. Boot ========================== */

@@ -8,7 +8,7 @@
 var runHappyTests = (function () {
   'use strict';
 
-  function run(Core, M) {
+  function run(Core, M, C) {
     var results = [];
 
     function record(name, ok, message) {
@@ -458,6 +458,85 @@ var runHappyTests = (function () {
         assertEq(M.sessionStars(10, 10), 3, '100% = 3 stars');
         assertEq(M.sessionStars(7, 10), 2, '70% = 2 stars');
         assertEq(M.sessionStars(3, 10), 1, '30% = 1 star');
+      });
+    }
+
+    /* ===================== CHESS (engine correctness) ===================== */
+    if (C) {
+      test('chess: FEN round-trips the start position', function () {
+        var st = C.parseFEN(C.START_FEN);
+        assertEq(C.exportFEN(st), C.START_FEN, 'export === START_FEN');
+      });
+
+      test('chess: perft(startpos) = 20 / 400 / 8902', function () {
+        var st = C.parseFEN(C.START_FEN);
+        assertEq(C.perft(st, 1), 20, 'depth 1');
+        assertEq(C.perft(st, 2), 400, 'depth 2');
+        assertEq(C.perft(st, 3), 8902, 'depth 3');
+      });
+
+      test('chess: perft(kiwipete) = 48 / 2039 (castling, e.p., promotion, pins)', function () {
+        var st = C.parseFEN('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+        assertEq(C.perft(st, 1), 48, 'depth 1');
+        assertEq(C.perft(st, 2), 2039, 'depth 2');
+      });
+
+      test('chess: detects checkmate (fool\'s mate) and stalemate', function () {
+        var mate = C.parseFEN('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3');
+        assertEq(C.gameStatus(mate), 'checkmate', 'fool\'s mate is checkmate');
+        var stale = C.parseFEN('k7/8/1Q6/8/8/8/8/7K b - - 0 1');
+        assertEq(C.gameStatus(stale), 'stalemate', 'no moves, not in check = stalemate');
+      });
+
+      test('chess: castling moves are generated when legal', function () {
+        var st = C.parseFEN('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1');
+        var moves = C.legalMoves(st);
+        assert(C.findMove(moves, C.sqFromAlg('e1'), C.sqFromAlg('g1')), 'king-side castle');
+        assert(C.findMove(moves, C.sqFromAlg('e1'), C.sqFromAlg('c1')), 'queen-side castle');
+      });
+
+      test('chess: en passant capture is available on the right square', function () {
+        var st = C.parseFEN('7k/8/8/4Pp2/8/8/8/4K3 w - f6 0 1');
+        var m = C.findMove(C.legalMoves(st), C.sqFromAlg('e5'), C.sqFromAlg('f6'));
+        assert(m && m.flag === 'ep', 'e5xf6 e.p. exists');
+      });
+
+      test('chess: every mate-in-one puzzle is actually solvable', function () {
+        var units = C.CHESS_UNITS, u, l, k, j;
+        for (u = 0; u < units.length; u++) {
+          for (k = 0; k < units[u].lessons.length; k++) {
+            l = units[u].lessons[k];
+            if (l.type !== 'puzzle') { continue; }
+            var st = C.parseFEN(l.fen);
+            var moves = C.legalMoves(st), mate = false;
+            for (j = 0; j < moves.length; j++) { if (C.moveGivesMate(st, moves[j])) { mate = true; break; } }
+            assert(mate, 'puzzle ' + l.id + ' has a mate in one');
+          }
+        }
+      });
+
+      test('chess: piece mini-games are well-formed (valid start + distinct coins)', function () {
+        var units = C.CHESS_UNITS, u, l, k, c;
+        for (u = 0; u < units.length; u++) {
+          for (k = 0; k < units[u].lessons.length; k++) {
+            l = units[u].lessons[k];
+            if (l.type !== 'piece') { continue; }
+            assert(l.coins && l.coins.length >= 1, l.id + ' has coins');
+            for (c = 0; c < l.coins.length; c++) {
+              assert(l.coins[c] !== l.start, l.id + ' coin not on the start square');
+              assert(C.onBoard(C.sqFromAlg(l.coins[c])), l.id + ' coin on board');
+            }
+          }
+        }
+      });
+
+      test('chess: the bot returns a legal move and grabs a hanging queen', function () {
+        var st = C.parseFEN(C.START_FEN);
+        var m = C.bestMove(st, 1, C.makeRng(1));
+        assert(C.findMove(C.legalMoves(st), m.from, m.to), 'level-1 move is legal');
+        var hang = C.parseFEN('q6k/8/8/8/8/8/8/R3K3 w - - 0 1');
+        var grab = C.bestMove(hang, 3, C.makeRng(7));
+        assertEq(C.algFromSq(grab.to), 'a8', 'a strong bot captures the free queen');
       });
     }
 

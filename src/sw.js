@@ -1,7 +1,7 @@
 /* HappyTiles service worker — cache-first, offline-capable.
  * Bump CACHE_VERSION on every release so clients pick up new assets. */
 
-const CACHE_VERSION = 'happytiles-v9';
+const CACHE_VERSION = 'happytiles-v10';
 
 // Everything the app needs to run fully offline. All assets are local —
 // the app makes no third-party / network requests at runtime.
@@ -11,6 +11,7 @@ const PRECACHE_URLS = [
   './style.css',
   './games-core.js',
   './math-core.js',
+  './chess-core.js',
   './app.js',
   './manifest.json',
   './icons/icon.svg'

@@ -157,6 +157,36 @@
   **42/42** smoke tests + headless screenshots of the map, a launched ×7 boss, the
   start screen, and the fact-family strategy card.
 
+### 2026-06-30 — Add "Chess Academy": a structured chess game with a real engine
+- **Decision**: Build a fourth game inside HappyTiles — a beginner chess **learning**
+  academy with a real, dependency-free engine (`src/chess-core.js`): 0x88 board, FEN,
+  full legal move generation (castling, en passant, promotion), check/mate/stalemate,
+  and a **negamax + alpha-beta bot** at three beginner levels. The engine is **perft-
+  verified** (startpos 20/400/8902; Kiwipete 48/2039) so move generation is provably
+  correct. A structured curriculum (pure data in the engine, test-validated) teaches one
+  idea at a time: **Meet the Pieces** (per-piece "collect the gems" mini-games), **Capturing
+  & Value**, **Check & Checkmate** (mate-in-one puzzles), then **Play vs the leveled bot**.
+  Board pieces are **inline SVG** (not Unicode glyphs) so White/Black are unmistakable on
+  every device. Tap-to-move with legal-move dots; auto-queen promotion for now. State in
+  `ht_chess_*`. Plan in `docs/CHESS.md`.
+- **Context**: The user wants their early-3rd-grade beginner to learn chess (openings,
+  middlegame, endgame ideas) and then apply them in real games — "world-class, structured,
+  for kids."
+- **Alternatives considered**: (a) *Embed a 3rd-party chess library / engine* (chess.js +
+  stockfish.wasm) — rejected: violates HappyTiles' zero-dependency, zero-build, offline,
+  no-network ethos, and stockfish.wasm is far too strong/heavy for a 7-year-old. A small
+  hand-written engine + a gentle leveled bot is the right fit and stays testable in-repo.
+  (b) *Unicode chess glyphs for pieces* — rejected after validation: some platforms render
+  them as fixed-color emoji, making White and Black identical. Inline SVG is device-proof.
+  (c) *Drag-and-drop moves* — rejected for tap-to-move (more reliable for small fingers).
+  (d) *Jump straight into full games* — rejected in favor of the proven "one piece / one
+  idea at a time, mini-games first" beginner ladder.
+- **Consequences**: The engine must stay correct (perft tests guard it) and ES3-safe (runs
+  in the 3-runtime harness). The bot is intentionally weak/leveled, not a strong engine.
+  Promotion is auto-queen until a picker is added (Phase 2). SW cache bumped to **v10**.
+  Verified: **52/52** smoke tests (incl. perft + every puzzle/mini-game) and headless drive
+  of a mini-game (3★), a mate-in-one, and a live game vs the bot — zero JS errors.
+
 ### 2026-06-06 — ES3-safe, runtime-agnostic smoke tests
 - **Decision**: Write one shared suite (`tests/smoke-tests.js`) that runs unchanged under Node, the browser, and Windows `cscript`/JScript. Keep `games-core.js` and the suite ES3-safe (no template literals, arrows, `Array.from`, `forEach`, `Object.keys`, `Array.prototype.indexOf`).
 - **Context**: This dev machine has only Microsoft Store *stub* Python/Node (non-functional); the only working JS engine present is the built-in Windows Script Host (`cscript`), which is ES3-era.

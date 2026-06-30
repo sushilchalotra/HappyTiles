@@ -5,6 +5,7 @@ Ad-free, offline-friendly **Progressive Web App** of simple games for kids:
 - **Shape Sudoku** — kid-friendly puzzles with colorful shapes or numbers, instant error checking, and undo. A **9-level ladder** climbs 4×4 → 6×6 → 9×9.
 - **Slide Puzzle** — sliding-tile puzzles with built-in pictures and an optional number overlay. A **5-level ladder** grows 3×3 → 4×4 → 5×5.
 - **Math Quest** — an adaptive **times-tables & division** trainer. It finds your level, then teaches new facts and builds speed using spaced repetition (correct *and* fast = mastered), with a growing **World Map**, **Boss Battles**, and a grown-ups **progress dashboard**. Fully offline — no AI in the loop. See `docs/MATH-QUEST.md`.
+- **Chess Academy** — a structured **chess-learning** game for beginners: meet each piece with a mini-game, learn capturing & checkmate (mate-in-one puzzles), then **play a real game vs a friendly leveled bot**. Built on a from-scratch, perft-verified chess engine (no libraries). See `docs/CHESS.md`.
 - **Levels & stars** — win to earn 1–3 ⭐ (based on care, not speed) and unlock the next level. Your star total and progress show on the home screen. Fast solves earn a bonus **⚡ Speedy!** — with no stressful on-screen clock.
 
 **Built for kids and parents who care about privacy:**
@@ -27,6 +28,7 @@ HappyTiles/
 │  ├─ style.css
 │  ├─ games-core.js      ← pure Sudoku/Puzzle logic (DOM-free, testable)
 │  ├─ math-core.js       ← pure adaptive math engine (DOM-free, testable)
+│  ├─ chess-core.js      ← pure chess engine + bot + curriculum (perft-tested)
 │  ├─ app.js
 │  ├─ manifest.json
 │  ├─ sw.js              ← service worker (offline cache)
@@ -34,7 +36,8 @@ HappyTiles/
 ├─ docs/
 │  ├─ ARCHITECTURE.md
 │  ├─ DECISIONS.md
-│  └─ MATH-QUEST.md      ← Math Quest plan, northstar & roadmap
+│  ├─ MATH-QUEST.md      ← Math Quest plan, northstar & roadmap
+│  └─ CHESS.md           ← Chess Academy plan, northstar & curriculum
 ├─ serve.mjs            ← zero-dep Node dev server (node serve.mjs)
 ├─ .github/workflows/deploy.yml   ← optional one-click GitHub Pages deploy
 └─ README.md
@@ -162,7 +165,7 @@ node tests/run-node.js
 cscript //nologo tests\run-cscript.js
 ```
 
-All three report the same result. Current status: **43 passed, 0 failed.** The suite covers:
+All three report the same result. Current status: **52 passed, 0 failed.** The suite covers:
 
 - Sudoku: generated 4×4 / 6×6 / 9×9 solutions are fully valid; puzzles dig exactly the
   configured number of holes (incl. per-level overrides); every dug puzzle — and every
@@ -176,6 +179,10 @@ All three report the same result. Current status: **43 passed, 0 failed.** The s
   fast, a miss demotes; spaced-repetition scheduling; weighted item selection; question /
   distractor / division generation; adaptive placement seeding; the nine "worlds"
   partition + boss-readiness; and the parent-dashboard insights.
+- Chess: **perft** node counts (startpos 20/400/8902; Kiwipete 48/2039) proving legal move
+  generation incl. castling, en passant, promotion and pins; checkmate/stalemate detection;
+  the bot returns legal moves and grabs a hanging queen; and every shipped mate-in-one
+  puzzle and piece mini-game is validated.
 
 Runners exit non-zero on failure, so `node tests/run-node.js` drops straight into CI.
 

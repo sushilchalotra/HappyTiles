@@ -150,6 +150,7 @@ body {
 .card-sudoku { background: linear-gradient(155deg, var(--pink), var(--purple)); }
 .card-puzzle { background: linear-gradient(155deg, var(--teal-deep), var(--purple-deep)); }
 .card-math   { background: linear-gradient(155deg, var(--orange), var(--pink-deep)); }
+.card-chess  { background: linear-gradient(155deg, var(--purple-deep), var(--teal-deep)); }
 .game-card-art {
   width: 110px; height: 110px;
   display: grid; place-items: center;
@@ -618,6 +619,61 @@ body {
 
 .dash-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .dash-reset { color: var(--pink-deep); border-color: #f3c2d2; }
+
+/* ----------------------------------- Chess Academy ----------------------------------- */
+.chess-done-pill { cursor: default; }
+.chess-stage { display: grid; place-items: center; margin-top: 6px; }
+
+/* Lesson path */
+.chess-path { width: min(94vw, 460px); display: flex; flex-direction: column; gap: 8px; }
+.chess-unit { font-weight: 900; color: var(--purple-deep); margin: 12px 4px 2px; font-size: 1.05rem; }
+.chess-node {
+  display: flex; align-items: center; gap: 12px;
+  border: 2px solid var(--line); border-radius: var(--radius);
+  background: var(--card); box-shadow: var(--shadow-sm);
+  padding: 12px 14px; cursor: pointer; text-align: left;
+  transition: transform 0.12s ease;
+}
+.chess-node:active { transform: scale(0.98); }
+.chess-node.is-locked { background: #f1edf7; opacity: 0.7; cursor: default; box-shadow: none; }
+.chess-node-ic { font-size: 1.7rem; width: 1.6em; text-align: center; }
+.chess-node-t { flex: 1; font-weight: 800; color: var(--ink); }
+.chess-node-s { font-size: 0.95rem; letter-spacing: 1px; white-space: nowrap; }
+
+/* Lesson view */
+.chess-lesson { width: min(94vw, 460px); }
+.chess-l-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.chess-back { padding: 0 12px; }
+.chess-l-title { font-weight: 900; font-size: 1.2rem; color: var(--ink); }
+.chess-tip { color: var(--ink-soft); font-weight: 600; margin: 0 0 12px; line-height: 1.4; }
+.chess-board-slot { display: grid; place-items: center; }
+.chess-foot { display: flex; justify-content: center; margin-top: 14px; }
+.chess-info { text-align: center; }
+
+/* Board */
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: min(92vw, 440px);
+  aspect-ratio: 1 / 1;
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 4px solid var(--purple-deep);
+}
+.sq {
+  position: relative; border: none; padding: 0; cursor: pointer;
+  display: grid; place-items: center; aspect-ratio: 1 / 1;
+}
+.sq.light { background: #efe7fb; }
+.sq.dark  { background: #b79aec; }
+.sq.sel   { box-shadow: inset 0 0 0 4px var(--orange); }
+.sq.last  { box-shadow: inset 0 0 0 4px rgba(255, 210, 63, 0.85); }
+.sq.check { background: #ff9bb0 !important; }
+.cp-svg { width: 82%; height: 82%; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
+.coin { position: absolute; font-size: clamp(1.1rem, 5vw, 1.6rem); filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+/* legal-move markers */
+.sq.dest::after { content: ''; position: absolute; width: 30%; height: 30%; border-radius: 50%; background: rgba(43, 33, 56, 0.32); }
+.sq.cap::after  { content: ''; position: absolute; inset: 7%; border-radius: 50%; border: 4px solid rgba(43, 33, 56, 0.4); }
 
 /* ----------------------------------- Reduced motion ----------------------------------- */
 @media (prefers-reduced-motion: reduce) {

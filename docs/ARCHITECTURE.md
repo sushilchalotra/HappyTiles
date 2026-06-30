@@ -28,13 +28,16 @@ HappyTiles/
 │  └─ deploy.yml              # Optional GitHub Pages deploy (uploads src/)
 ├─ docs/
 │  ├─ ARCHITECTURE.md         # This file
-│  └─ DECISIONS.md            # Decision log
+│  ├─ DECISIONS.md            # Decision log
+│  ├─ MATH-QUEST.md           # Math Quest plan/northstar/roadmap
+│  └─ CHESS.md                # Chess Academy plan/northstar/curriculum
 ├─ src/                       # The entire app (deploy THIS folder)
 │  ├─ index.html              # App shell: header, home, sudoku view, puzzle view, win overlay
 │  ├─ style.css               # Candy theme, responsive, a11y, reduced-motion
 │  ├─ games-core.js           # PURE Sudoku/Puzzle logic (DOM-free, ES3-safe, testable)
 │  ├─ math-core.js            # PURE adaptive math engine (DOM-free, ES3-safe, testable)
-│  ├─ app.js                  # DOM/UI: nav, audio, confetti, Sudoku/Puzzle/Math controllers
+│  ├─ chess-core.js           # PURE chess engine + bot + curriculum (DOM-free, ES3-safe, perft-tested)
+│  ├─ app.js                  # DOM/UI: nav, audio, confetti, Sudoku/Puzzle/Math/Chess controllers
 │  ├─ manifest.json           # PWA manifest
 │  ├─ sw.js                   # Service worker (cache-first; bump CACHE_VERSION per release)
 │  └─ icons/icon.svg          # App / favicon / maskable icon
@@ -72,6 +75,15 @@ HappyTiles/
     accepts `opts.ids` to restrict selection to one world.
   - Like `games-core.js`: all randomness via injectable `rng`, all "now" passed in as ms,
     ES3-safe, and covered by the shared smoke-test suite. See `docs/MATH-QUEST.md`.
+- **`chess-core.js`** exposes a single global/CommonJS object `ChessCore` — a pure,
+  DOM-free chess **engine** for the Chess Academy game. 0x88 board; FEN parse/export;
+  full legal move generation (`legalMoves`, with castling/en-passant/promotion),
+  `makeMove`/`unmakeMove`, `isInCheck`, `gameStatus`, and `perft` (the correctness gate —
+  startpos 20/400/8902, Kiwipete 48/2039). A beginner-leveled bot `bestMove(state, level,
+  rng)` (negamax + alpha-beta, material + light center eval). The **curriculum** is pure
+  data (`CHESS_UNITS`: piece mini-games, mate-in-one puzzles, play-vs-bot lessons), so
+  tests verify every shipped puzzle has a mate-in-one and every mini-game is well-formed.
+  ES3-safe; runs under Node/browser/cscript. See `docs/CHESS.md`.
 - **`app.js`** is the DOM/UI layer. It owns rendering, input, `localStorage`
   preferences, Web Audio sound effects, confetti, and hash-based navigation
   (`#home` / `#sudoku` / `#puzzle`). Its Sudoku and Puzzle controllers call into
@@ -85,15 +97,16 @@ HappyTiles/
   - `renderHome()` — fills the home star total and per-card "Level N · x/max ★".
   - Sudoku/Puzzle controllers are **level-driven**: difficulty comes from the ladder
     index, not a manual size picker. The Puzzle board size `N` is now variable (3/4/5).
-- **Load order** (in `index.html`): `games-core.js`, then `math-core.js`, then `app.js`
-  (all `defer`).
+- **Load order** (in `index.html`): `games-core.js`, `math-core.js`, `chess-core.js`,
+  then `app.js` (all `defer`).
 - **Persistence**: `localStorage` keys `ht_muted`, `ht_sudoku_symbols`, `ht_puzzle_pic`,
   `ht_puzzle_numbers`, plus progression keys `ht_sudoku_level`, `ht_puzzle_level`
   (furthest unlocked index) and `ht_sudoku_stars`, `ht_puzzle_stars` (JSON best-stars
   maps). Never leaves the device. (`ht_sudoku_size` was retired — size now derives from level.)
   Math Quest adds `ht_math_facts` (JSON array of per-fact mastery records),
   `ht_math_profile` (`{placed, allowDivision, bosses, bestSpeedMs}`) and
-  `ht_math_streak` (`{days, last}`). Also local-only.
+  `ht_math_streak` (`{days, last}`). Chess Academy adds `ht_chess_progress` (furthest
+  unlocked lesson index) and `ht_chess_stars` (JSON best-stars per lesson id). All local-only.
 
 ## Testing
 
@@ -150,6 +163,18 @@ zero-build, privacy/COPPA+GDPR, PWA offline, WCAG AA accessibility, inline SVG o
 
 ## Next
 
+- **Chess Academy — Phase 1 (MVP) shipped (2026-06-30)**: a fourth game — a structured
+  beginner chess academy. Engine `src/chess-core.js` (`ChessCore`): perft-correct move
+  gen + leveled bot + curriculum data. UI: a `Chess` controller in `app.js` (lesson path,
+  piece "collect the gems" mini-games, mate-in-one puzzles, play-vs-bot), `#view-chess`
+  + a home Chess tile, **inline-SVG pieces**, chess styles in `style.css`, `card-chess`
+  gradient. State in `ht_chess_*`. SW cache **v10**. Plan/curriculum in `docs/CHESS.md`;
+  rationale in DECISIONS 2026-06-30. Verified: **52/52** smoke tests (incl. perft + every
+  puzzle/mini-game) and a headless drive of a mini-game (3★), a mate-in-one, and a live
+  game vs the bot (zero JS errors), pieces clearly White vs Black on a phone viewport.
+  **Next for Chess (Phase 2)**: castling/en-passant lesson, tactics trainer (fork/pin/
+  skewer), guided endgame mates (K+Q, K+R), opening principles, a promotion picker, hints,
+  take-back, optional coordinates/notation, and stronger bot scaling.
 - **Math Quest — Phase 0 + Phase 1 (MVP) shipped (2026-06-29)**: a third game, an
   adaptive multiplication/division fluency trainer. Plan/northstar/roadmap in
   `docs/MATH-QUEST.md`; rationale in DECISIONS 2026-06-29.

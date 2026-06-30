@@ -86,6 +86,24 @@
           <span class="game-card-label">Math Quest</span>
           <span class="card-progress" id="math-progress" aria-hidden="true"></span>
         </button>
+
+        <button class="game-card card-chess" data-go="chess" type="button">
+          <span class="game-card-art" aria-hidden="true">
+            <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-hidden="true">
+              <rect x="8" y="8" width="84" height="84" rx="14" fill="#fff" opacity="0.92"/>
+              <g>
+                <rect x="20" y="20" width="20" height="20" fill="#b79aec"/>
+                <rect x="60" y="20" width="20" height="20" fill="#b79aec"/>
+                <rect x="40" y="40" width="20" height="20" fill="#b79aec"/>
+                <rect x="20" y="60" width="20" height="20" fill="#b79aec"/>
+                <rect x="60" y="60" width="20" height="20" fill="#b79aec"/>
+              </g>
+              <text x="50" y="64" font-size="42" text-anchor="middle" fill="#2b2138">♞</text>
+            </svg>
+          </span>
+          <span class="game-card-label">Chess Academy</span>
+          <span class="card-progress" id="chess-progress" aria-hidden="true"></span>
+        </button>
       </div>
       <p class="home-tagline">No ads. No internet needed. Just fun! ✨</p>
     </section>
@@ -159,6 +177,20 @@
 
       <p id="math-status" class="status" role="status" aria-live="polite"></p>
     </section>
+
+    <!-- ============================= CHESS ACADEMY VIEW ============================= -->
+    <section id="view-chess" class="view" aria-label="Chess Academy game" hidden>
+      <div class="toolbar">
+        <button class="icon-btn back-btn" data-go="home" type="button" aria-label="Back to home">⬅️</button>
+        <span class="pill-btn level-btn chess-done-pill">
+          <span aria-hidden="true">♟️</span> <span id="chess-done">0/0</span>
+        </span>
+      </div>
+
+      <div id="chess-stage" class="chess-stage"></div>
+
+      <p id="chess-status" class="status" role="status" aria-live="polite"></p>
+    </section>
   </main>
 
   <!-- ============================= WIN OVERLAY ============================= -->
@@ -205,6 +237,7 @@
 
   <script src="./games-core.js" defer></script>
   <script src="./math-core.js" defer></script>
+  <script src="./chess-core.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
