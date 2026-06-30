@@ -860,7 +860,7 @@
     const SESSION_LEN = 10;
 
     let facts = [];
-    let profile = { placed: false, allowDivision: false, bosses: {}, bestSpeedMs: 0 };
+    let profile = { placed: false, allowDivision: false, bosses: {}, bestSpeedMs: 0, xp: 0, bestStreak: 0 };
     let streak = { days: 0, last: '' };
 
     let session = null;                 // active placement/play session
@@ -884,7 +884,7 @@
           profile = {
             placed: !!p.placed, allowDivision: !!p.allowDivision,
             bosses: (p.bosses && typeof p.bosses === 'object') ? p.bosses : {},
-            bestSpeedMs: p.bestSpeedMs || 0
+            bestSpeedMs: p.bestSpeedMs || 0, xp: p.xp || 0, bestStreak: p.bestStreak || 0
           };
         }
       } catch (e) { /* keep defaults */ }
@@ -932,17 +932,24 @@
       const ws = M.worlds(facts);
       for (let i = 0; i < ws.length; i++) { if (ws[i].bossReady && !profile.bosses[ws[i].factor]) { readyBoss = ws[i]; break; } }
       const bestChip = profile.bestSpeedMs ? '<span class="math-chip">⚡ best ' + (profile.bestSpeedMs / 1000).toFixed(1) + 's</span>' : '';
+      const streakChip = profile.bestStreak ? '<span class="math-chip">🔥 best run ' + profile.bestStreak + '</span>' : '';
+      const lvl = M.mathLevel(profile.xp || 0);
+      const canStreak = s.started >= 3;
       stageEl.innerHTML =
         '<div class="math-panel">' +
-          '<div class="math-big-emoji" aria-hidden="true">🚀</div>' +
-          '<h2 class="math-h">Ready to play?</h2>' +
+          '<div class="math-level" aria-label="Level ' + lvl.level + '">' +
+            '<span class="math-level-badge">🏅 ' + lvl.level + '</span>' +
+            '<span class="math-level-info"><b>' + lvl.title + ' · Level ' + lvl.level + '</b>' +
+              '<span class="math-level-bar"><span style="width:' + lvl.pct + '%"></span></span></span>' +
+          '</div>' +
           '<div class="math-stats">' +
             '<span class="math-chip">⭐ ' + s.fluent + ' mastered</span>' +
-            '<span class="math-chip">🔥 ' + streak.days + ' day streak</span>' + bestChip +
+            '<span class="math-chip">🔥 ' + streak.days + ' day streak</span>' + bestChip + streakChip +
           '</div>' +
           '<div class="math-actions">' +
             '<button class="pill-btn pill-primary math-go" id="math-play" type="button">Quick Play ▶️</button>' +
             (canSpeed ? '<button class="pill-btn math-go" id="math-speed" type="button">⚡ Speed Round</button>' : '') +
+            (canStreak ? '<button class="pill-btn math-go math-streak-btn" id="math-streak" type="button">🔥 Streak Challenge</button>' : '') +
             (readyBoss ? '<button class="pill-btn math-go math-boss-btn" id="math-boss" type="button">👾 Boss: ' + readyBoss.label + '</button>' : '') +
             '<button class="pill-btn math-go" id="math-map" type="button">🗺️ World Map</button>' +
           '</div>' +
@@ -950,6 +957,7 @@
         '</div>';
       $('#math-play').addEventListener('click', function () { startSession('mixed'); });
       if (canSpeed) $('#math-speed').addEventListener('click', function () { startSession('speed'); });
+      if (canStreak) $('#math-streak').addEventListener('click', function () { startSession('streak'); });
       if (readyBoss) $('#math-boss').addEventListener('click', function () { startBoss(readyBoss.factor); });
       $('#math-map').addEventListener('click', renderMap);
       $('#math-parent').addEventListener('click', renderDashboard);
@@ -1078,7 +1086,7 @@
 
     function resetProgress() {
       Store.set(KEYS.facts, JSON.stringify(M.createInitialState()));
-      Store.set(KEYS.profile, JSON.stringify({ placed: false, allowDivision: profile.allowDivision, bosses: {}, bestSpeedMs: 0 }));
+      Store.set(KEYS.profile, JSON.stringify({ placed: false, allowDivision: profile.allowDivision, bosses: {}, bestSpeedMs: 0, xp: 0, bestStreak: 0 }));
       Store.set(KEYS.streak, JSON.stringify({ days: 0, last: '' }));
       load();
       syncProgress(); syncOps();
@@ -1120,15 +1128,25 @@
     }
 
     /* ---- a play session ---- */
+    function awardXp(latency, becameFluent) {
+      let gain = 10;
+      if (latency <= M.FAST_MS) { gain += 5; }
+      if (becameFluent) { gain += 20; }
+      profile.xp = (profile.xp || 0) + gain; saveProfile();
+    }
+
     function startSession(mode) {
       Audio.play('tap');
-      session = { type: 'play', mode: mode, idx: 0, correct: 0, times: [],
-                  rng: M.makeRng((now() & 0xffffff) || 1), newFact: null, newReps: 0 };
+      const type = mode === 'streak' ? 'streak' : 'play';
+      session = { type: type, mode: mode === 'streak' ? 'mixed' : mode, idx: 0, correct: 0, times: [],
+                  rng: M.makeRng((now() & 0xffffff) || 1), newFact: null, newReps: 0,
+                  startLevel: M.mathLevel(profile.xp || 0).level };
       lastId = null;
       if (mode === 'mixed') {
         const nf = M.pickNewFact(facts);     // introduce one new fact with a strategy card
         if (nf) { session.newFact = nf; renderStrategy(nf); return; }
       }
+      if (type === 'streak') { setStatus('Keep your streak alive — one miss ends it! 🔥'); }
       nextStep();
     }
 
@@ -1161,7 +1179,7 @@
 
     function sessionLen() { return session.len || SESSION_LEN; }
     function nextStep() {
-      if (session.idx >= sessionLen()) { finishSession(); return; }
+      if (session.type !== 'streak' && session.idx >= sessionLen()) { finishSession(); return; }
       session.idx++;
       let fact;
       if (session.newFact && session.newReps < 2) {        // drill a freshly taught fact first
@@ -1175,10 +1193,11 @@
       const allowDiv = profile.allowDivision && fact.stage >= M.STAGE.REVIEWING;
       curQ = M.makeQuestion(fact, { rng: session.rng, allowDivision: allowDiv });
       answered = false;
-      const label = session.type === 'boss' ? '👾 Boss'
+      const label = session.type === 'streak' ? '🔥 Streak ' + session.correct
+                  : session.type === 'boss' ? '👾 Boss'
                   : (session.mode === 'speed') ? '⚡ Speed'
                   : (fact === session.newFact ? '✨ New' : 'Practice');
-      renderQuestion(curQ, session.idx, sessionLen(), label);
+      renderQuestion(curQ, session.idx, session.type === 'streak' ? 0 : sessionLen(), label);
     }
 
     function finishSession() {
@@ -1199,16 +1218,18 @@
       if (type === 'speed' && correct >= Math.ceil(total * 0.7)) {
         if (!profile.bestSpeedMs || median < profile.bestSpeedMs) { profile.bestSpeedMs = median; saveProfile(); newRecord = true; }
       }
+      const leveled = checkLevelUp(session.startLevel);
 
       session = null;
       const s = M.summary(facts, now());
       syncProgress();
       setStatus(type === 'boss' ? (bossWon ? 'Boss beaten! 🏆' : 'Good try — challenge again!') : 'Session done! 🎉');
       Win.show({
-        title: type === 'boss' ? (bossWon ? 'Boss beaten! 🏆' : 'So close!') : 'Great work!',
+        title: leveled ? ('🏅 Level ' + leveled + '!') : (type === 'boss' ? (bossWon ? 'Boss beaten! 🏆' : 'So close!') : 'Great work!'),
         sub: correct + ' out of ' + total + ' right' +
+             (leveled ? ' · 🏅 Level ' + leveled + '!' : '') +
              (newRecord ? ' · ⚡ New speed record!' : '') + extra +
-             (type !== 'boss' && !newRecord ? ' · ⭐ ' + s.fluent + ' mastered' : ''),
+             (type !== 'boss' && !newRecord && !leveled ? ' · ⭐ ' + s.fluent + ' mastered' : ''),
         stars: stars,
         speedy: speedy || newRecord,
         next: null,
@@ -1305,12 +1326,38 @@
       const rec = M.findFact(facts, curQ.id);
       const info = M.grade(rec, correct, latency, now());
       saveFacts();
-      if (correct) session.correct++;
+      if (correct) { session.correct++; awardXp(latency, info.becameFluent); }
       session.times.push(latency);
       lastId = curQ.id;
       showFeedback(correct, btn, info.becameFluent);
       syncProgress();
+      if (session.type === 'streak') {
+        if (correct) { window.setTimeout(nextStep, 650); } else { window.setTimeout(finishStreak, 1350); }
+        return;
+      }
       window.setTimeout(nextStep, correct ? 650 : 1350);
+    }
+
+    function checkLevelUp(startLevel) {
+      const lvl = M.mathLevel(profile.xp || 0).level;
+      return lvl > (startLevel || 1) ? lvl : 0;
+    }
+    function finishStreak() {
+      const run = session.correct;
+      let isRecord = false;
+      if (run > (profile.bestStreak || 0)) { profile.bestStreak = run; saveProfile(); isRecord = true; }
+      const leveled = checkLevelUp(session.startLevel);
+      bumpStreak(); saveFacts();
+      session = null; syncProgress();
+      setStatus('Streak over! 🔥');
+      Win.show({
+        title: isRecord ? 'New best streak! 🔥' : 'Nice run! 🔥',
+        sub: 'You got ' + run + ' in a row!' + (isRecord ? '' : ' · best ' + (profile.bestStreak || 0)) + (leveled ? ' · 🏅 Level ' + leveled + '!' : ''),
+        stars: run >= 15 ? 3 : (run >= 8 ? 2 : 1),
+        speedy: isRecord,
+        next: null,
+        again: { cb: function () { startSession('streak'); } }
+      });
     }
 
     function showFeedback(correct, btn, becameFluent) {

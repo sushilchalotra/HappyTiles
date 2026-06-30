@@ -481,6 +481,15 @@ body {
 }
 .math-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
 .math-go { font-size: 1.15rem; padding: 0 22px; min-height: 54px; }
+.math-streak-btn { background: #fff1ad; border-color: var(--orange); color: #8a6d00; }
+
+/* Player level badge + progress */
+.math-level { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; background: #f7f3ff; border-radius: 14px; padding: 10px 14px; }
+.math-level-badge { font-size: 1.25rem; font-weight: 900; color: var(--purple-deep); background: #fff; border-radius: 999px; padding: 5px 13px; box-shadow: var(--shadow-sm); white-space: nowrap; }
+.math-level-info { flex: 1; display: flex; flex-direction: column; gap: 5px; text-align: left; }
+.math-level-info b { color: var(--ink); font-size: 0.95rem; }
+.math-level-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.math-level-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--yellow), var(--orange)); }
 
 /* Question card */
 .math-q {

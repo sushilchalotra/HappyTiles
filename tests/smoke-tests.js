@@ -450,6 +450,15 @@ var runHappyTests = (function () {
         assert(inFocus, 'a learning fact shows up in focus');
       });
 
+      test('math: player level rises with XP and reports progress', function () {
+        assertEq(M.mathLevel(0).level, 1, 'start at level 1');
+        assert(M.mathLevel(100).level >= 2, '100 XP reaches level 2');
+        assert(M.mathLevel(2000).level > M.mathLevel(200).level, 'more XP = higher level');
+        var p = M.mathLevel(60);
+        assert(p.pct >= 0 && p.pct <= 100, 'progress percent is in range');
+        assert(typeof p.title === 'string' && p.title.length > 0, 'has a rank title');
+      });
+
       test('math: summary counts stages and session stars map to 3/2/1', function () {
         var s = M.summary(M.buildFacts(), 0);
         assertEq(s.total, 45, 'total facts');

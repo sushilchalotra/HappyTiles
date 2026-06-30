@@ -87,8 +87,12 @@ mastery feeds the same headline motivator as the other games.
 - **Phase 2 — Engagement + division** ✅ done: a **World Map** (9 tables as worlds
   that fill in and earn 🏆 when mastered); **Boss Battles** per world; **personal-best
   speed** records in Speed Rounds; the strategy card now shows the full ×/÷ **fact
-  family** when division is on. Engine: `worlds` / `worldFacts` / `worldOf` (42/42 tests).
-- **Phase 3 — Insight + optional AI:** parent dashboard (offline heatmap/trends);
+  family** when division is on. Engine: `worlds` / `worldFacts` / `worldOf`.
+- **Phase 2b — Levels + challenges** ✅ done: an overall **Player Level** (XP from
+  correct/fast/mastery, Rookie→Legend ranks, level-up celebration) on the start screen,
+  and a **🔥 Streak Challenge** (keep answering right; one miss ends it; tracks a best
+  run). `mathLevel(xp)` is pure + tested. State adds `xp` + `bestStreak` to the profile.
+- **Phase 3 — Insight + optional AI:** parent dashboard (offline heatmap/trends) ✅;
   optional LLM weekly report + cached themed word problems behind parent consent.
 - **Phase 4 — Polish:** more content/themes, a11y passes, sound/animation polish,
   threshold tuning from real play.

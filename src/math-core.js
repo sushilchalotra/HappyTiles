@@ -420,6 +420,25 @@ var MathCore = (function () {
     return 1;
   }
 
+  /* ------------------------------ player level (XP) ------------------------------ */
+  // An overall progression "Level" earned from XP (effort + correctness), separate
+  // from per-fact mastery and the world map. Gentle curve: level L starts at
+  // 50*L*(L-1) XP, so each level needs 100*L more than the last.
+  function levelTitle(L) {
+    if (L <= 2) { return 'Rookie'; }
+    if (L <= 4) { return 'Explorer'; }
+    if (L <= 6) { return 'Star'; }
+    if (L <= 8) { return 'Champion'; }
+    return 'Legend';
+  }
+  function mathLevel(xp) {
+    xp = (xp > 0) ? xp : 0;
+    var L = 1;
+    while (50 * (L + 1) * L <= xp) { L++; }
+    var base = 50 * L * (L - 1), nextAt = 50 * (L + 1) * L, span = nextAt - base;
+    return { level: L, title: levelTitle(L), into: xp - base, need: span, pct: Math.round(((xp - base) / span) * 100) };
+  }
+
   /* ------------------------------ worlds (meta-progression) ------------------------------ */
   // Each of the 45 facts is "owned" by exactly one table — the first table in
   // teaching order that introduces it (so e.g. 7x8 belongs to the ×7 world, not ×8).
@@ -504,7 +523,7 @@ var MathCore = (function () {
     makeChoices: makeChoices, makeQuestion: makeQuestion,
     // placement / progress
     placementProbes: placementProbes, applyPlacement: applyPlacement,
-    summary: summary, sessionStars: sessionStars,
+    summary: summary, sessionStars: sessionStars, mathLevel: mathLevel,
     // worlds (meta-progression)
     worlds: worlds, worldFacts: worldFacts, worldOf: worldOf, worldLabel: worldLabel,
     // parent insights

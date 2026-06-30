@@ -12,7 +12,7 @@ _Last updated: 2026-06-30._
 |------|-------|
 | Shape Sudoku | ✅ Shipped (levels, stars, speedy bonus) |
 | Slide Puzzle | ✅ Shipped (levels, stars, speedy bonus) |
-| Math Quest | ✅ Phases 1–3 shipped (adaptive engine, World Map + Bosses, parent dashboard) |
+| Math Quest | ✅ Phases 1–3 shipped (adaptive engine, World Map + Bosses, parent dashboard, **Player Level + Streak Challenge**) |
 | Chess Academy | ✅ Phases 1–2 shipped (engine + bot, evaluation test, Openings/Tactics/Endgames) |
 
 Everything is offline, zero-dependency, zero-build, and live at
