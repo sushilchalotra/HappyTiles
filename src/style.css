@@ -651,6 +651,17 @@ body {
 /* Hint highlight */
 .sq.hint { box-shadow: inset 0 0 0 4px var(--teal-deep); }
 
+/* Move coach (Play vs Bot) */
+.chess-coach { width: min(92vw, 440px); margin: 12px auto 0; animation: bounceIn 0.3s ease both; }
+.coach-bubble { display: flex; align-items: flex-start; gap: 10px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 12px 14px; border-left: 6px solid var(--purple); }
+.coach-face { font-size: 1.7rem; line-height: 1; }
+.coach-text { font-weight: 700; color: var(--ink); line-height: 1.35; }
+.chess-coach.q-great .coach-bubble   { border-left-color: var(--teal-deep); background: #eafaf3; }
+.chess-coach.q-good .coach-bubble    { border-left-color: var(--teal); background: #f0fbf7; }
+.chess-coach.q-mistake .coach-bubble { border-left-color: var(--orange); background: #fff6ea; }
+.chess-coach.q-blunder .coach-bubble { border-left-color: var(--pink-deep); background: #ffeef3; }
+.coach-btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+
 /* Lesson view */
 .chess-lesson { width: min(94vw, 460px); }
 .chess-l-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -658,7 +669,7 @@ body {
 .chess-l-title { font-weight: 900; font-size: 1.2rem; color: var(--ink); }
 .chess-tip { color: var(--ink-soft); font-weight: 600; margin: 0 0 12px; line-height: 1.4; }
 .chess-board-slot { display: grid; place-items: center; }
-.chess-foot { display: flex; justify-content: center; margin-top: 14px; }
+.chess-foot { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .chess-info { text-align: center; }
 
 /* Board */

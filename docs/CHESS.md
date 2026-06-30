@@ -78,9 +78,13 @@ covered by the shared smoke suite.
   **Hints**, a "Start here" badge, and "Re-check my level". **26 lessons**; all puzzles
   test-verified. Curriculum order: Pieces → Capturing → **Openings** → Checkmate →
   Tactics → Endgames → Play.
-- **Phase 3 (next)**: promotion picker (Q/R/B/N), take-back/undo in games, more tactics
-  (pin, skewer, discovered attack), guided long mates (K+Q, K+R walked step-by-step),
-  optional coordinates/notation, and finer bot scaling.
+- **Phase 3 (guided learning)** ✅ done: **Coach Mode** in Play-vs-Bot — after each move
+  the pure `coachMove` engine explains *why* it's good or bad (hung piece, free capture,
+  missed mate, opening principles…), offers a **take-back** on blunders, and can **speak**
+  the tip aloud (offline `speechSynthesis`). Selective by design; Coach/Voice toggles.
+- **Phase 4 (next)**: promotion picker (Q/R/B/N), more tactics (pin, skewer, discovered
+  attack), guided long mates (K+Q, K+R walked step-by-step), optional coordinates/notation,
+  finer bot scaling, and bringing the coach's "why" into puzzles too.
 - **Phase 3**: a "puzzle of the day", simple game review, and (optional, off-hot-path)
   AI-generated coaching tips for parents — never in the move loop.
 

@@ -213,6 +213,31 @@
   zero JS errors. A real bug was caught in the process (lesson-flatten dropped goal/
   solutions, breaking puzzles) and fixed.
 
+### 2026-06-30 — Chess "Coach Mode": guided per-move feedback + take-back + voice
+- **Decision**: Turn Play-vs-Bot from a *checker* into a *tutor*. After each of the
+  player's moves, a pure engine function `coachMove(state, move)` judges it and returns a
+  one-line, kid-friendly explanation of **why** it's good or bad (concept + quality +
+  text). On a blunder it offers a **take-back** ("Try again"). Feedback is **selective**
+  (most moves are 'quiet') so the coach never nags. An optional **voice** reads the line
+  aloud via the browser's built-in `speechSynthesis` (offline, no network). Coach and Voice
+  are toggles (default on), stored in `ht_chess_coach` / `ht_chess_voice`.
+- **Context**: Feedback that the games teach by drilling but don't *explain* — "I'd learn
+  if it told me why a move is good or bad," with a suggestion of a voice guide.
+- **Alternatives considered**: (a) **LLM coach** (send the position to an AI for natural-
+  language analysis) — rejected hard: it breaks offline/instant/private/zero-dep, AND LLMs
+  are unreliable at concrete chess (they confidently mis-evaluate). The right tool is our
+  own engine. (b) **Deep-search blunder eval** for the verdict — deferred; a fast **static**
+  analysis (hanging pieces, free captures, missed mates, opening principles) covers the
+  high-value beginner cases, is instant, and is fully explainable/testable. (c) **Voice as
+  the core idea** — reframed: voice is the *delivery*; the coaching *brain* is the real work.
+  Voice stays an optional layer (great for a young reader).
+- **Consequences**: New pure, unit-tested `coachMove` (gave/missed mate, hung piece, won
+  material, missed free piece, castle, center, develop, queen-early, quiet). It intentionally
+  doesn't attempt deep strategy. The take-back loop (blunder → explain → undo → retry) is the
+  main learning mechanic. SW cache **v12**. Verified headless end-to-end: a good move praises
+  ("grabbed the center"), a hung knight triggers the blunder bubble + working take-back,
+  toggles work, zero JS errors. 56/56 tests.
+
 ### 2026-06-06 — ES3-safe, runtime-agnostic smoke tests
 - **Decision**: Write one shared suite (`tests/smoke-tests.js`) that runs unchanged under Node, the browser, and Windows `cscript`/JScript. Keep `games-core.js` and the suite ES3-safe (no template literals, arrows, `Array.from`, `forEach`, `Object.keys`, `Array.prototype.indexOf`).
 - **Context**: This dev machine has only Microsoft Store *stub* Python/Node (non-functional); the only working JS engine present is the built-in Windows Script Host (`cscript`), which is ES3-era.

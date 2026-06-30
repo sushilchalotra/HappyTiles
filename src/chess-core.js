@@ -570,6 +570,101 @@ var ChessCore = (function () {
     return { stars: stars, unlocked: recommend, recommend: recommend, knownUnits: knownUnits };
   }
 
+  /* ------------------------------ move coach ------------------------------ */
+  // Real-time, kid-friendly coaching for a played move — the difference between a
+  // checker and a tutor. Pure and STATIC (no deep search, no LLM): it reads concrete
+  // engine facts (hanging pieces, free captures, missed mates, opening principles) and
+  // maps them to one short, encouraging line. Selective by design — most moves are
+  // 'quiet' so the coach never becomes noise.
+  var PIECE_NAME = { P: 'pawn', N: 'knight', B: 'bishop', R: 'rook', Q: 'queen', K: 'king' };
+  function pieceName(t) { return PIECE_NAME[t] || 'piece'; }
+  var CENTER_SQ = { 51: 1, 52: 1, 67: 1, 68: 1 };   // d4 e4 d5 e5
+
+  function mostValuableHanging(board, color) {
+    var best = null, i, p, t;
+    for (i = 0; i < 128; i++) {
+      if (i & 0x88) { continue; }
+      p = board[i]; if (p == null || colorOf(p) !== color) { continue; }
+      t = typeOf(p); if (t === 'K') { continue; }
+      if (isSquareAttacked(board, i, opp(color)) && !isSquareAttacked(board, i, color)) {
+        if (!best || VALUE[t] > best.val) { best = { sq: i, type: t, val: VALUE[t] }; }
+      }
+    }
+    return best;
+  }
+
+  function bestFreeCapture(state) {
+    var moves = legalMoves(state), best = { val: 0, type: null }, i;
+    for (i = 0; i < moves.length; i++) {
+      var m = moves[i]; if (!m.captured) { continue; }
+      var v = VALUE[typeOf(m.captured)]; if (v <= best.val) { continue; }
+      var undo = makeMove(state, m);
+      var recapturable = isSquareAttacked(state.board, m.to, state.turn);
+      unmakeMove(state, m, undo);
+      if (!recapturable) { best = { val: v, type: typeOf(m.captured) }; }
+    }
+    return best;
+  }
+
+  function freeCaptureValueOf(state, m) {
+    if (!m.captured) { return 0; }
+    var undo = makeMove(state, m);
+    var recapturable = isSquareAttacked(state.board, m.to, state.turn);
+    unmakeMove(state, m, undo);
+    return recapturable ? 0 : VALUE[typeOf(m.captured)];
+  }
+
+  // Coach a move played from `state` (player = side to move).
+  // Returns { quality, concept, text, speak, takeback }.
+  function coachMove(state, m) {
+    var player = state.turn, movePiece = typeOf(m.piece);
+
+    var work = cloneState(state);
+    makeMove(work, m);                                   // position after the move
+    var givesCheck = isInCheck(work, work.turn);
+    if (gameStatus(work) === 'checkmate') {
+      return { quality: 'great', concept: 'gave-mate', text: 'Checkmate — you win the game! 🏆', speak: true, takeback: false };
+    }
+
+    var i, moves = legalMoves(state), couldMate = false;
+    for (i = 0; i < moves.length; i++) { if (moveGivesMate(state, moves[i])) { couldMate = true; break; } }
+    if (couldMate) { return { quality: 'blunder', concept: 'missed-mate', text: 'Ooh — you could have played checkmate! Want to try again?', speak: true, takeback: true }; }
+
+    var capType = m.captured ? typeOf(m.captured) : null;
+    var myFree = m.captured ? freeCaptureValueOf(state, m) : 0;
+    var wonNet = m.captured ? (myFree > 0 ? myFree : (VALUE[capType] - VALUE[movePiece])) : 0;
+
+    var hang = givesCheck ? null : mostValuableHanging(work.board, player);
+    if (hang && hang.val >= VALUE.N && wonNet < hang.val) {
+      return { quality: 'blunder', concept: 'hung-piece',
+        text: 'Careful — you left your ' + pieceName(hang.type) + ' where it can be taken! Want to try again?', speak: true, takeback: true };
+    }
+
+    var free = bestFreeCapture(state);
+    if (free.val >= VALUE.N && myFree < free.val - 50) {
+      return { quality: 'mistake', concept: 'missed-free-piece',
+        text: 'You could have grabbed a free ' + pieceName(free.type) + '! Want to try again?', speak: true, takeback: true };
+    }
+
+    if (m.captured && wonNet >= 100) {
+      var big = VALUE[capType] >= VALUE.N;
+      return { quality: big ? 'great' : 'good', concept: 'won-material',
+        text: (big ? 'Yes! You won a ' : 'Nice — you grabbed a free ') + pieceName(capType) + (big ? '! 🎉' : '! 🍪'), speak: true, takeback: false };
+    }
+
+    if (m.flag === 'ck' || m.flag === 'cq') { return { quality: 'great', concept: 'castle', text: 'Smart — your king is safe now! 🏰', speak: true, takeback: false }; }
+    var backRank = player === W ? 0 : 7;
+    if (state.full <= 8) {
+      if (movePiece === 'P' && CENTER_SQ[m.to]) { return { quality: 'good', concept: 'center', text: 'Great — you grabbed the center! 🚀', speak: true, takeback: false }; }
+      if ((movePiece === 'N' || movePiece === 'B') && rankOf(m.from) === backRank) { return { quality: 'good', concept: 'develop', text: 'Nice — you developed a piece! 👍', speak: true, takeback: false }; }
+      if (movePiece === 'Q' && rankOf(m.from) === backRank && wonNet <= 0 && !givesCheck && state.full <= 6) {
+        return { quality: 'ok', concept: 'queen-early', text: 'Careful — bringing the queen out early can be risky.', speak: true, takeback: false };
+      }
+    }
+
+    return { quality: 'ok', concept: 'quiet', text: '', speak: false, takeback: false };
+  }
+
   /* ------------------------------ exports ------------------------------ */
   return {
     W: W, B: B, START_FEN: START_FEN, VALUE: VALUE,
@@ -583,7 +678,8 @@ var ChessCore = (function () {
     moveGivesMate: moveGivesMate, findMove: findMove,
     evaluate: evaluate, bestMove: bestMove,
     CHESS_UNITS: CHESS_UNITS, CHESS_PLACEMENT: CHESS_PLACEMENT,
-    assessMove: assessMove, applyChessPlacement: applyChessPlacement
+    assessMove: assessMove, applyChessPlacement: applyChessPlacement,
+    coachMove: coachMove
   };
 })();
 

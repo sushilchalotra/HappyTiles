@@ -1352,7 +1352,7 @@
     const C = window.ChessCore;
     const stageEl = $('#chess-stage');
     const statusEl = $('#chess-status');
-    const KEYS = { progress: 'ht_chess_progress', stars: 'ht_chess_stars', placed: 'ht_chess_placed' };
+    const KEYS = { progress: 'ht_chess_progress', stars: 'ht_chess_stars', placed: 'ht_chess_placed', coach: 'ht_chess_coach', voice: 'ht_chess_voice' };
     // Glyphs are used only for the lesson-path icons (dark text on white — fine).
     const GLYPH = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' };
 
@@ -1383,15 +1383,29 @@
       }
     })();
 
-    let unlocked = 0, starMap = {}, placed = false, wired = false, view = null;
+    let unlocked = 0, starMap = {}, placed = false, coachOn = true, voiceOn = true, wired = false, view = null;
 
     function load() {
       unlocked = parseInt(Store.get(KEYS.progress, '0'), 10) || 0;
       placed = Store.get(KEYS.placed, '') === '1';
+      coachOn = Store.get(KEYS.coach, '1') !== '0';   // default on
+      voiceOn = Store.get(KEYS.voice, '1') !== '0';   // default on
       try { const m = JSON.parse(Store.get(KEYS.stars, '{}')); starMap = (m && typeof m === 'object') ? m : {}; }
       catch (e) { starMap = {}; }
     }
     function save() { Store.set(KEYS.progress, String(unlocked)); Store.set(KEYS.stars, JSON.stringify(starMap)); }
+
+    // Coach voice — uses the browser's built-in offline speech synthesis (no network).
+    function speak(text) {
+      try {
+        if (!voiceOn || !('speechSynthesis' in window)) { return; }
+        const u = new SpeechSynthesisUtterance(String(text).replace(/[^\x00-\x7F]/g, '').replace(/\s+/g, ' ').trim());
+        u.rate = 1; u.pitch = 1.15;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      } catch (e) { /* TTS unavailable — silent */ }
+    }
+    const COACH_FACE = { great: '🌟', good: '👍', ok: '🙂', mistake: '🤔', blunder: '😬' };
 
     function homeStars() { let t = 0; for (const k in starMap) { t += starMap[k]; } return t; }
     function doneText() { let d = 0; for (const k in starMap) { if (starMap[k] > 0) { d++; } } return d + '/' + LESSONS.length; }
@@ -1747,30 +1761,69 @@
       }
     }
 
-    /* ---- play a full game vs the bot ---- */
+    /* ---- play a full game vs the bot (with the move Coach) ---- */
     function startPlay(L) {
       let st = C.parseFEN(C.START_FEN);
-      let over = false;
-      const footer = '<div class="chess-foot"><button class="pill-btn pill-primary" id="chess-newgame" type="button"><span aria-hidden="true">🎲</span> New game</button></div>';
+      let over = false, pending = false, lastBefore = null;
+      const footer =
+        '<div class="chess-foot">' +
+          '<button class="pill-btn" id="chess-coach-toggle" type="button"></button>' +
+          '<button class="pill-btn" id="chess-voice-toggle" type="button"></button>' +
+          '<button class="pill-btn pill-primary" id="chess-newgame" type="button"><span aria-hidden="true">🎲</span> New</button>' +
+        '</div>' +
+        '<div id="chess-coach" class="chess-coach" hidden></div>';
       view = { board: st.board, coins: null, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: -1, onSq: onSq };
       lessonShell(L.title, L.tip, footer);
       paintBoard();
+      syncToggles();
       setStatus('Your move! You are White ⚪');
+
       $('#chess-newgame').addEventListener('click', function () {
-        if (over || confirmCheck()) { restart(); }
+        if (over || st.full <= 1) { restart(); }
         else { Confirm.ask({ title: 'New game?', sub: 'This game will be lost.', yes: 'Yes, new game', onYes: restart }); }
       });
-      function confirmCheck() { return st.full <= 1 && st.turn === C.W; }    // nothing meaningful to lose yet
-      function restart() { st = C.parseFEN(C.START_FEN); over = false; view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; view.checkSq = -1; paintBoard(); setStatus('Your move! You are White ⚪'); }
+      $('#chess-coach-toggle').addEventListener('click', function () { coachOn = !coachOn; Store.set(KEYS.coach, coachOn ? '1' : '0'); syncToggles(); if (!coachOn) { hideCoach(); } Audio.play('tap'); });
+      $('#chess-voice-toggle').addEventListener('click', function () { voiceOn = !voiceOn; Store.set(KEYS.voice, voiceOn ? '1' : '0'); syncToggles(); if (!voiceOn && 'speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} } Audio.play('tap'); });
 
+      function syncToggles() {
+        const c = $('#chess-coach-toggle'), v = $('#chess-voice-toggle');
+        if (c) { c.innerHTML = '<span aria-hidden="true">🧑‍🏫</span> Coach: ' + (coachOn ? 'On' : 'Off'); c.setAttribute('aria-pressed', String(coachOn)); }
+        if (v) { v.innerHTML = '<span aria-hidden="true">🔊</span> Voice: ' + (voiceOn ? 'On' : 'Off'); v.setAttribute('aria-pressed', String(voiceOn)); v.disabled = !coachOn; }
+      }
+      function hideCoach() { const el = $('#chess-coach'); if (el) { el.hidden = true; } }
+      function restart() {
+        st = C.parseFEN(C.START_FEN); over = false; pending = false;
+        view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; view.checkSq = -1;
+        hideCoach(); paintBoard(); setStatus('Your move! You are White ⚪');
+      }
       function refreshCheck() { const k = C.findKing(st.board, st.turn); view.checkSq = (k >= 0 && C.isInCheck(st, st.turn)) ? k : -1; }
+
+      function showCoach(v) {
+        const el = $('#chess-coach');
+        if (!el || !coachOn || v.concept === 'quiet') { hideCoach(); return; }
+        const btns = v.takeback
+          ? '<div class="coach-btns"><button class="pill-btn pill-primary" id="coach-undo" type="button"><span aria-hidden="true">↩️</span> Try again</button><button class="pill-btn" id="coach-keep" type="button">Keep going ▶️</button></div>'
+          : '';
+        el.className = 'chess-coach q-' + v.quality;
+        el.innerHTML = '<div class="coach-bubble"><span class="coach-face" aria-hidden="true">' + (COACH_FACE[v.quality] || '🙂') + '</span><span class="coach-text">' + v.text + '</span></div>' + btns;
+        el.hidden = false;
+        if (v.speak) { speak(v.text); }
+        if (v.takeback) { $('#coach-undo').addEventListener('click', doTakeback); $('#coach-keep').addEventListener('click', doKeepGoing); }
+      }
+      function doTakeback() {
+        st = C.cloneState(lastBefore); pending = false;
+        view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; refreshCheck();
+        hideCoach(); paintBoard(); setStatus('Good thinking — try another move! 🤔');
+      }
+      function doKeepGoing() { pending = false; hideCoach(); if (!endIf()) { botMove(); } }
+
       function endIf() {
         const s = C.gameStatus(st);
         if (s === 'checkmate') {
           over = true;
           const youWin = st.turn === C.B;                 // side to move is the one checkmated
           if (youWin) { finishLesson(L, 'Checkmate — you beat the ' + L.title + '! ♚🏆', 3); }
-          else { setStatus('The bot got you this time! 🤖'); Win.show({ title: 'Good game!', sub: 'The bot won — want a rematch?', stars: 0, speedy: false, next: { cb: restart }, again: { cb: restart } }); }
+          else { setStatus('The bot got you this time! 🤖'); if (coachOn) { speak('Checkmate. The bot wins this one.'); } Win.show({ title: 'Good game!', sub: 'The bot won — want a rematch?', stars: 0, speedy: false, next: { cb: restart }, again: { cb: restart } }); }
           return true;
         }
         if (s === 'stalemate' || s === 'draw') { over = true; setStatus('It’s a draw! 🤝'); Win.show({ title: 'It’s a draw!', sub: 'Nobody got checkmated.', stars: 1, speedy: false, next: { cb: restart }, again: { cb: restart } }); return true; }
@@ -1789,13 +1842,18 @@
         }, 450);
       }
       function onSq(sq) {
-        if (over || st.turn !== C.W) { return; }
+        if (over || pending || st.turn !== C.W) { return; }
         if (view.selected >= 0 && contains(view.dests, sq)) {
           const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);   // auto-queen (Q-promo first)
           if (m) {
+            const before = C.cloneState(st);
             C.makeMove(st, m); Audio.play(m.captured ? 'place' : 'slide');
             view.lastFrom = m.from; view.lastTo = m.to; view.selected = -1; view.dests = []; refreshCheck(); paintBoard();
-            if (!endIf()) { botMove(); }
+            lastBefore = before;
+            const verdict = coachOn ? C.coachMove(before, m) : { concept: 'quiet', speak: false, takeback: false };
+            if (verdict.concept !== 'quiet') { showCoach(verdict); } else { hideCoach(); }
+            if (verdict.takeback) { pending = true; setStatus('Hmm, let’s look at that move…'); }
+            else if (!endIf()) { botMove(); }
           }
           return;
         }

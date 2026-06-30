@@ -607,6 +607,33 @@ var runHappyTests = (function () {
         assert(mid.stars && mid.knownUnits.length >= 1, 'known units are pre-credited');
       });
 
+      test('chess: the move coach explains good and bad moves', function () {
+        function coachOf(fen, fromAlg, toAlg) {
+          var st = C.parseFEN(fen);
+          var m = C.findMove(C.legalMoves(st), C.sqFromAlg(fromAlg), C.sqFromAlg(toAlg));
+          assert(m, 'move ' + fromAlg + toAlg + ' is legal in ' + fen);
+          return C.coachMove(st, m);
+        }
+        // delivers mate
+        assertEq(coachOf('6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1', 'a1', 'a8').concept, 'gave-mate', 'Ra8 is mate');
+        // misses a mate
+        assertEq(coachOf('6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1', 'a1', 'a7').concept, 'missed-mate', 'Ra7 misses mate');
+        // hangs a piece
+        var hang = coachOf('k7/8/8/4p3/8/8/8/3RK3 w - - 0 1', 'd1', 'd4');
+        assertEq(hang.concept, 'hung-piece', 'Rd4 hangs the rook');
+        assert(hang.takeback, 'a blunder offers a take-back');
+        // wins a free piece
+        assertEq(coachOf('k7/8/8/3n4/8/8/3R4/K7 w - - 0 1', 'd2', 'd5').concept, 'won-material', 'Rxd5 wins the knight');
+        // opening: center, develop, castle
+        assertEq(coachOf(C.START_FEN, 'e2', 'e4').concept, 'center', 'e4 takes the center');
+        assertEq(coachOf(C.START_FEN, 'g1', 'f3').concept, 'develop', 'Nf3 develops');
+        assertEq(coachOf('rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4', 'e1', 'g1').concept, 'castle', 'O-O castles');
+        // a quiet move says nothing
+        var quiet = coachOf(C.START_FEN, 'a2', 'a3');
+        assertEq(quiet.concept, 'quiet', 'a3 is unremarkable');
+        assert(!quiet.speak, 'quiet moves do not interrupt');
+      });
+
       test('chess: the bot returns a legal move and grabs a hanging queen', function () {
         var st = C.parseFEN(C.START_FEN);
         var m = C.bestMove(st, 1, C.makeRng(1));

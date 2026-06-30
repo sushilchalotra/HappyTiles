@@ -20,12 +20,14 @@ Everything is offline, zero-dependency, zero-build, and live at
 
 ---
 
-## ♟️ Chess Academy — pending (Phase 3+)
+## ♟️ Chess Academy — pending (Phase 4+)
 
-Detail/curriculum: `CHESS.md`.
+Detail/curriculum: `CHESS.md`. (Done: engine + bot, evaluation test, Openings/Tactics/
+Endgames, and **Coach Mode** — per-move "why" feedback + take-back + optional voice.)
 
 - [ ] **Promotion picker** (choose Q / R / B / N) — currently auto-queens.
-- [ ] **Take-back / undo** a move in games vs the bot (big for a learning beginner).
+- [x] ~~Take-back / undo in games~~ — shipped as part of Coach Mode (offered on a blunder).
+- [ ] Bring the coach's **"why"** into puzzles too (not just Play-vs-Bot).
 - [ ] **More tactics** lessons: pin, skewer, discovered attack, double attack, removing the defender.
 - [ ] **Guided long checkmates**: K+Q vs K and K+R vs K, walked step-by-step (not just mate-in-one).
 - [ ] **More opening lessons**: "don't move the same piece twice", "knight before bishop", "don't bring the queen out early" (as a puzzle).
