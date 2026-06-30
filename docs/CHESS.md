@@ -82,9 +82,14 @@ covered by the shared smoke suite.
   the pure `coachMove` engine explains *why* it's good or bad (hung piece, free capture,
   missed mate, opening principles…), offers a **take-back** on blunders, and can **speak**
   the tip aloud (offline `speechSynthesis`). Selective by design; Coach/Voice toggles.
-- **Phase 4 (next)**: promotion picker (Q/R/B/N), more tactics (pin, skewer, discovered
-  attack), guided long mates (K+Q, K+R walked step-by-step), optional coordinates/notation,
-  finer bot scaling, and bringing the coach's "why" into puzzles too.
+- **Phase 4 (getting better)** — in progress: a **Tactics Dojo** ✅ — an endless, adaptive
+  tactics workout with spaced repetition and a **belt** progression (`TACTICS` +
+  `selectTactic` + `tacticBelt`); the coach names the motif on a miss. Covers forks,
+  hanging pieces, win-material, mate-in-one. **Next in Phase 4:** a Checkmate-Patterns unit
+  (back-rank, smothered, Scholar's attack+defense, ladder, Q+K/R+K) with **mate-in-two**
+  (`forcesMateInTwo` ready); an **Opening repertoire + traps** (Italian, defenses, Scholar's
+  trap); then a promotion picker, more tactic motifs (pin/skewer/discovered), and finer bot
+  scaling.
 - **Phase 3**: a "puzzle of the day", simple game review, and (optional, off-hot-path)
   AI-generated coaching tips for parents — never in the move loop.
 

@@ -665,6 +665,84 @@ var ChessCore = (function () {
     return { quality: 'ok', concept: 'quiet', text: '', speak: false, takeback: false };
   }
 
+  /* ============================================================================
+     TACTICS DOJO — a leveled library of one-move tactics + adaptive selection
+     with light spaced repetition + a karate-belt progression. All puzzles are
+     test-verified (the captured/forked/mating target is real).
+     ============================================================================ */
+  var TACTICS = [
+    // forks (knight forks king + a big piece — verified: gives check AND hits a big piece)
+    { id: 'fk1', motif: 'fork', level: 1, goal: 'fork', fen: 'q3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', solutions: ['b5c7'], tip: 'A knight can attack the king and queen at once — fork them!' },
+    { id: 'fk2', motif: 'fork', level: 1, goal: 'fork', fen: '2q3k1/8/8/3N4/8/8/8/4K3 w - - 0 1', solutions: ['d5e7'], tip: 'Hop in and fork the king and queen.' },
+    { id: 'fk3', motif: 'fork', level: 2, goal: 'fork', fen: 'r3k3/8/4N3/8/8/8/8/4K3 w - - 0 1', solutions: ['e6c7'], tip: 'Fork the king and the rook.' },
+    { id: 'fk4', motif: 'fork', level: 2, goal: 'fork', fen: 'k1q5/8/8/8/2N5/8/8/4K3 w - - 0 1', solutions: ['c4b6'], tip: 'Check the king and grab the queen.' },
+    // hanging pieces (free captures — verified undefended)
+    { id: 'fr1', motif: 'hanging', level: 1, goal: 'free', fen: 'k7/8/8/3n4/8/8/3R4/K7 w - - 0 1', solutions: ['d2d5'], tip: 'The knight has no guard — take it for free!' },
+    { id: 'fr2', motif: 'hanging', level: 1, goal: 'free', fen: 'k7/8/8/3n4/8/8/6B1/K7 w - - 0 1', solutions: ['g2d5'], tip: 'Your bishop can grab the free knight.' },
+    { id: 'fr3', motif: 'hanging', level: 2, goal: 'free', fen: '7k/8/8/8/3b4/8/3R4/K7 w - - 0 1', solutions: ['d2d4'], tip: 'The bishop is undefended — win it!' },
+    { id: 'fr4', motif: 'hanging', level: 2, goal: 'free', fen: '7k/8/8/8/8/3r4/8/K2Q4 w - - 0 1', solutions: ['d1d3'], tip: 'Win the rook for free.' },
+    // win material (capture a higher-value piece — a winning trade)
+    { id: 'wn1', motif: 'win-material', level: 2, goal: 'win', fen: '3q1k2/8/8/8/8/8/3R4/K7 w - - 0 1', solutions: ['d2d8'], tip: 'Rook takes queen — a great trade!' },
+    { id: 'wn2', motif: 'win-material', level: 3, goal: 'win', fen: '5k2/8/8/8/8/8/4q3/K3R3 w - - 0 1', solutions: ['e1e2'], tip: 'Snap off the queen with your rook!' },
+    // checkmates (verified mate in one)
+    { id: 'mt1', motif: 'mate', level: 2, goal: 'mate1', fen: '6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1', tip: 'Back-rank checkmate!' },
+    { id: 'mt2', motif: 'mate', level: 2, goal: 'mate1', fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1', tip: 'Walk the queen in for checkmate.' },
+    { id: 'mt3', motif: 'mate', level: 3, goal: 'mate1', fen: '6k1/R4ppp/8/8/8/8/8/6K1 w - - 0 1', tip: 'Deliver mate on the back rank!' }
+  ];
+
+  // Friendly per-motif name used by the coach when she misses.
+  var MOTIF_NAME = { fork: 'fork', hanging: 'free piece', 'win-material': 'winning capture', mate: 'checkmate' };
+
+  // Adaptive pick: prefer not-yet-mastered puzzles, weight up ones she missed and
+  // easier ones, avoid an immediate repeat. progress: id -> { mastered, missed }.
+  function selectTactic(progress, opts) {
+    opts = opts || {}; var rng = opts.rng || Math.random, exclude = opts.excludeId;
+    progress = progress || {};
+    var pool = [], i, t, rec;
+    for (i = 0; i < TACTICS.length; i++) { rec = progress[TACTICS[i].id] || {}; if (!rec.mastered) { pool.push(TACTICS[i]); } }
+    if (pool.length === 0) { pool = TACTICS.slice(0); }
+    var weights = [], total = 0;
+    for (i = 0; i < pool.length; i++) {
+      t = pool[i]; rec = progress[t.id] || {};
+      var w = 1; if (rec.missed) { w += 4; } w += (4 - (t.level < 3 ? t.level : 3));
+      if (exclude && t.id === exclude) { w *= 0.05; }
+      if (w < 0.05) { w = 0.05; }
+      weights[i] = w; total += w;
+    }
+    var r = rng() * total, acc = 0;
+    for (i = 0; i < pool.length; i++) { acc += weights[i]; if (r <= acc) { return pool[i]; } }
+    return pool[pool.length - 1];
+  }
+
+  function tacticsMastered(progress) {
+    progress = progress || {}; var n = 0, i;
+    for (i = 0; i < TACTICS.length; i++) { if (progress[TACTICS[i].id] && progress[TACTICS[i].id].mastered) { n++; } }
+    return n;
+  }
+
+  var BELTS = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black'];
+  function tacticBelt(mastered) {
+    var per = Math.ceil(TACTICS.length / 8); if (per < 1) { per = 1; }
+    var idx = Math.floor(mastered / per); if (idx > 7) { idx = 7; }
+    return { index: idx, name: BELTS[idx], per: per, next: idx < 7 ? (idx + 1) * per : null };
+  }
+
+  // Does `move` force checkmate in two? (move isn't mate, but every reply allows a
+  // mate-in-one.) For the upcoming mate-in-two puzzles.
+  function forcesMateInTwo(state, move) {
+    var w = cloneState(state); makeMove(w, move);
+    if (gameStatus(w) === 'checkmate') { return false; }
+    var replies = legalMoves(w); if (replies.length === 0) { return false; }
+    for (var i = 0; i < replies.length; i++) {
+      var u = makeMove(w, replies[i]);
+      var canMate = false, mm = legalMoves(w), j;
+      for (j = 0; j < mm.length; j++) { if (moveGivesMate(w, mm[j])) { canMate = true; break; } }
+      unmakeMove(w, replies[i], u);
+      if (!canMate) { return false; }
+    }
+    return true;
+  }
+
   /* ------------------------------ exports ------------------------------ */
   return {
     W: W, B: B, START_FEN: START_FEN, VALUE: VALUE,
@@ -679,7 +757,10 @@ var ChessCore = (function () {
     evaluate: evaluate, bestMove: bestMove,
     CHESS_UNITS: CHESS_UNITS, CHESS_PLACEMENT: CHESS_PLACEMENT,
     assessMove: assessMove, applyChessPlacement: applyChessPlacement,
-    coachMove: coachMove
+    coachMove: coachMove,
+    TACTICS: TACTICS, MOTIF_NAME: MOTIF_NAME, BELTS: BELTS,
+    selectTactic: selectTactic, tacticsMastered: tacticsMastered, tacticBelt: tacticBelt,
+    forcesMateInTwo: forcesMateInTwo
   };
 })();
 

@@ -644,6 +644,31 @@ body {
 .chess-retake { display: flex; justify-content: flex-end; margin-bottom: 4px; }
 .chess-retake .pill-btn { font-size: 0.85rem; padding: 0 12px; min-height: 38px; }
 
+/* Tactics Dojo call-to-action + belts */
+.dojo-cta {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  border: none; cursor: pointer; text-align: left;
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 6px;
+  color: #fff; background: linear-gradient(150deg, var(--orange), var(--pink-deep));
+  box-shadow: var(--shadow);
+}
+.dojo-cta:active { transform: scale(0.98); }
+.dojo-cta-ic { font-size: 1.8rem; }
+.dojo-cta-t { flex: 1; display: flex; flex-direction: column; }
+.dojo-cta-t b { font-size: 1.15rem; }
+.dojo-cta-t small { opacity: 0.95; font-weight: 700; }
+.dojo-cta-go { font-size: 1.2rem; }
+.dojo-stats { margin-left: auto; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+.belt-chip { font-weight: 800; border-radius: 999px; padding: 4px 12px; border: 2px solid var(--line); }
+.belt-white  { background: #ffffff; color: #6b5a86; }
+.belt-yellow { background: #fff1ad; color: #8a6d00; }
+.belt-orange { background: #ffd6a8; color: #9a4d00; }
+.belt-green  { background: #bdf0c8; color: #0c6b39; }
+.belt-blue   { background: #bcd7ff; color: #1c4f9c; }
+.belt-purple { background: #e2ccff; color: #5a2ca0; }
+.belt-brown  { background: #e3c3a3; color: #6b3a16; }
+.belt-black  { background: #2b2138; color: #fff; }
+
 /* Evaluation results */
 .chess-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px 0 14px; }
 .chess-badge { background: #d8f7e4; color: #0c6b39; font-weight: 800; border-radius: 999px; padding: 6px 14px; font-size: 0.9rem; }

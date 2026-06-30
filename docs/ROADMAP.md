@@ -25,10 +25,17 @@ Everything is offline, zero-dependency, zero-build, and live at
 Detail/curriculum: `CHESS.md`. (Done: engine + bot, evaluation test, Openings/Tactics/
 Endgames, and **Coach Mode** — per-move "why" feedback + take-back + optional voice.)
 
-- [ ] **Promotion picker** (choose Q / R / B / N) — currently auto-queens.
 - [x] ~~Take-back / undo in games~~ — shipped as part of Coach Mode (offered on a blunder).
-- [ ] Bring the coach's **"why"** into puzzles too (not just Play-vs-Bot).
-- [ ] **More tactics** lessons: pin, skewer, discovered attack, double attack, removing the defender.
+- [~] **Tactics Dojo** shipped: an endless, adaptive tactics workout with spaced repetition
+      and a **karate-belt** progression (`TACTICS` library + `selectTactic` + `tacticBelt`);
+      coach explains misses. Covers **forks, hanging pieces, win-material, mate-in-one**.
+      *Still to add:* pin, skewer, discovered attack, double attack, removing the defender,
+      and **mate-in-two** (`forcesMateInTwo` is ready for it).
+- [ ] **Checkmate patterns** unit: back-rank, smothered, Scholar's (attack + defense),
+      ladder, Q+K / R+K technique, plus mate-in-two puzzles.
+- [ ] **Opening repertoire + traps**: Italian Game, simple Black defenses, Scholar's-mate trap.
+- [ ] **Promotion picker** (choose Q / R / B / N) — currently auto-queens.
+- [ ] Bring the coach's **"why"** into the lesson puzzles too (not just Play-vs-Bot).
 - [ ] **Guided long checkmates**: K+Q vs K and K+R vs K, walked step-by-step (not just mate-in-one).
 - [ ] **More opening lessons**: "don't move the same piece twice", "knight before bishop", "don't bring the queen out early" (as a puzzle).
 - [ ] **Optional board coordinates / notation** toggle (off by default).

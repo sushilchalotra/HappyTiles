@@ -1352,7 +1352,7 @@
     const C = window.ChessCore;
     const stageEl = $('#chess-stage');
     const statusEl = $('#chess-status');
-    const KEYS = { progress: 'ht_chess_progress', stars: 'ht_chess_stars', placed: 'ht_chess_placed', coach: 'ht_chess_coach', voice: 'ht_chess_voice' };
+    const KEYS = { progress: 'ht_chess_progress', stars: 'ht_chess_stars', placed: 'ht_chess_placed', coach: 'ht_chess_coach', voice: 'ht_chess_voice', tactics: 'ht_chess_tactics' };
     // Glyphs are used only for the lesson-path icons (dark text on white — fine).
     const GLYPH = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' };
 
@@ -1383,7 +1383,7 @@
       }
     })();
 
-    let unlocked = 0, starMap = {}, placed = false, coachOn = true, voiceOn = true, wired = false, view = null;
+    let unlocked = 0, starMap = {}, placed = false, coachOn = true, voiceOn = true, tacticsProgress = {}, wired = false, view = null;
 
     function load() {
       unlocked = parseInt(Store.get(KEYS.progress, '0'), 10) || 0;
@@ -1392,8 +1392,11 @@
       voiceOn = Store.get(KEYS.voice, '1') !== '0';   // default on
       try { const m = JSON.parse(Store.get(KEYS.stars, '{}')); starMap = (m && typeof m === 'object') ? m : {}; }
       catch (e) { starMap = {}; }
+      try { const t = JSON.parse(Store.get(KEYS.tactics, '{}')); tacticsProgress = (t && typeof t === 'object') ? t : {}; }
+      catch (e) { tacticsProgress = {}; }
     }
     function save() { Store.set(KEYS.progress, String(unlocked)); Store.set(KEYS.stars, JSON.stringify(starMap)); }
+    function saveTactics() { Store.set(KEYS.tactics, JSON.stringify(tacticsProgress)); }
 
     // Coach voice — uses the browser's built-in offline speech synthesis (no network).
     function speak(text) {
@@ -1447,6 +1450,12 @@
       syncPill();
       const recIdx = recommendedIndex();
       let html = '<div class="chess-path">';
+      const tBelt = C.tacticBelt(C.tacticsMastered(tacticsProgress));
+      html += '<button class="dojo-cta" id="chess-dojo" type="button">' +
+                '<span class="dojo-cta-ic" aria-hidden="true">⚡</span>' +
+                '<span class="dojo-cta-t"><b>Tactics Dojo</b><small>🥋 ' + tBelt.name + ' belt · ' + C.tacticsMastered(tacticsProgress) + '/' + C.TACTICS.length + '</small></span>' +
+                '<span class="dojo-cta-go" aria-hidden="true">▶</span>' +
+              '</button>';
       html += '<div class="chess-retake"><button class="pill-btn" id="chess-retake" type="button"><span aria-hidden="true">🧭</span> Re-check my level</button></div>';
       let lastUnit = '';
       for (let i = 0; i < LESSONS.length; i++) {
@@ -1463,9 +1472,88 @@
       }
       html += '</div>';
       stageEl.innerHTML = html;
+      $('#chess-dojo').addEventListener('click', startTactics);
       $('#chess-retake').addEventListener('click', function () { Store.set(KEYS.placed, ''); placed = false; startEval(); });
       $$('#chess-stage .chess-node').forEach(function (b) { b.addEventListener('click', function () { openLesson(parseInt(b.dataset.i, 10)); }); });
-      setStatus('Pick a lesson to start! ♟️');
+      setStatus('Pick a lesson, or train in the Tactics Dojo! ⚡');
+    }
+
+    /* ---- Tactics Dojo: an endless adaptive tactics workout with belts ---- */
+    const DOJO_PRAISE = { fork: 'Nice fork! 🍴', hanging: 'Free piece — nice! 🎉', 'win-material': 'You won material! 💰', mate: 'Checkmate! ♚🏆' };
+    function startTactics() {
+      Audio.play('tap');
+      let streak = 0, lastId = null, cur = null, answered = false;
+
+      function dojoBubble(quality, text) {
+        const el = $('#chess-coach'); if (!el) { return; }
+        el.className = 'chess-coach q-' + quality;
+        el.innerHTML = '<div class="coach-bubble"><span class="coach-face" aria-hidden="true">' + (COACH_FACE[quality] || '🙂') + '</span><span class="coach-text">' + text + '</span></div>';
+        el.hidden = false;
+        if (voiceOn) { speak(text); }
+      }
+      function header() {
+        const mastered = C.tacticsMastered(tacticsProgress), total = C.TACTICS.length, belt = C.tacticBelt(mastered);
+        return '<div class="chess-l-head">' +
+            '<button class="pill-btn chess-back" id="dojo-back" type="button"><span aria-hidden="true">⬅️</span> Done</button>' +
+            '<span class="belt-chip belt-' + belt.name.toLowerCase() + '">🥋 ' + belt.name + '</span>' +
+            '<span class="dojo-stats">⭐ ' + mastered + '/' + total + ' · 🔥 ' + streak + '</span>' +
+          '</div>';
+      }
+      function nextPuzzle() { present(C.selectTactic(tacticsProgress, { rng: Math.random, excludeId: lastId })); }
+      function present(p) {
+        cur = p; answered = false;
+        const st = C.parseFEN(p.fen);
+        view = { board: st.board, coins: null, selected: -1, dests: [], lastFrom: -1, lastTo: -1, checkSq: checkSqOf(st), hintSq: -1, onSq: onSq };
+        stageEl.innerHTML =
+          '<div class="chess-lesson">' + header() +
+            '<p class="chess-tip"><span aria-hidden="true">⚡</span> ' + p.tip + '</p>' +
+            '<div id="chess-board-slot" class="chess-board-slot"></div>' +
+            '<div class="chess-foot"><button class="pill-btn" id="chess-hint" type="button"><span aria-hidden="true">💡</span> Hint</button></div>' +
+            '<div id="chess-coach" class="chess-coach" hidden></div>' +
+          '</div>';
+        $('#dojo-back').addEventListener('click', renderPath);
+        $('#chess-hint').addEventListener('click', function () { view.hintSq = hintFromSq(st, p); paintBoard(); });
+        paintBoard();
+        setStatus('Find the best move! ⚡');
+
+        function onSq(sq) {
+          if (answered) { return; }
+          if (view.selected >= 0 && contains(view.dests, sq)) {
+            const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);
+            if (m) {
+              answered = true;
+              const solved = C.assessMove(st, p, m);
+              C.makeMove(st, m); view.lastFrom = m.from; view.lastTo = sq; view.selected = -1; view.dests = []; view.hintSq = -1; view.checkSq = checkSqOf(st); paintBoard();
+              if (solved) { onSolved(); } else { onMissed(); }
+            }
+            return;
+          }
+          const pc = st.board[sq];
+          if (pc && C.colorOf(pc) === st.turn) { view.selected = sq; view.dests = destSquares(C.legalMoves(st, sq)); Audio.play('tap'); paintBoard(); }
+          else { view.selected = -1; view.dests = []; view.hintSq = -1; paintBoard(); }
+        }
+        function onSolved() {
+          Audio.play('place');
+          const beltBefore = C.tacticBelt(C.tacticsMastered(tacticsProgress)).index;
+          tacticsProgress[p.id] = { mastered: true, missed: false }; saveTactics();
+          const beltAfter = C.tacticBelt(C.tacticsMastered(tacticsProgress)).index;
+          streak++; lastId = p.id;
+          dojoBubble('great', DOJO_PRAISE[p.motif] || 'Great move! 🌟');
+          if (beltAfter > beltBefore) {
+            setStatus('New belt! 🥋');
+            Win.show({ title: 'New Belt! 🥋', sub: 'You earned the ' + C.BELTS[beltAfter] + ' belt!', stars: 3, speedy: false, again: { cb: nextPuzzle } });
+            speak('You earned the ' + C.BELTS[beltAfter] + ' belt!');
+          } else { window.setTimeout(nextPuzzle, 1050); }
+        }
+        function onMissed() {
+          Audio.play('error');
+          tacticsProgress[p.id] = { mastered: false, missed: true }; saveTactics();
+          streak = 0; lastId = null;
+          dojoBubble('mistake', 'Hmm — look for the ' + (C.MOTIF_NAME[p.motif] || 'best move') + '. Try again! 🤔');
+          window.setTimeout(function () { present(p); }, 1400);
+        }
+      }
+      nextPuzzle();
     }
 
     /* ---- evaluation test → personalized plan ---- */

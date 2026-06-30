@@ -576,6 +576,9 @@ var runHappyTests = (function () {
             assert(C.isInCheck(st, st.turn), label + ': the fork gives check');
             assert(moverAttacksBigPiece(st, C.opp(st.turn)), label + ': it also attacks a big piece');
             C.unmakeMove(st, m, undo2);
+          } else if (item.goal === 'win') {
+            assert(m.captured, label + ': it captures a piece');
+            assert(C.VALUE[C.typeOf(m.captured)] > C.VALUE[C.typeOf(m.piece)], label + ': wins higher-value material');
           }
         }
       }
@@ -605,6 +608,30 @@ var runHappyTests = (function () {
         var mid = C.applyChessPlacement({ capture: true, mate1: true });
         assert(mid.recommend > 0, 'a mid kid skips the basics');
         assert(mid.stars && mid.knownUnits.length >= 1, 'known units are pre-credited');
+      });
+
+      test('chess: every tactics-dojo puzzle is valid and achieves its motif', function () {
+        for (var i = 0; i < C.TACTICS.length; i++) { validateChallenge(C.TACTICS[i], 'tactic ' + C.TACTICS[i].id + ' (' + C.TACTICS[i].motif + ')'); }
+      });
+
+      test('chess: tactics selection adapts and the belt climbs', function () {
+        // a missed, easy puzzle should be favored over mastered ones
+        var prog = {};
+        for (var i = 0; i < C.TACTICS.length; i++) { prog[C.TACTICS[i].id] = { mastered: true }; }
+        var target = C.TACTICS[2].id; prog[target] = { mastered: false, missed: true };
+        var hits = 0;
+        for (var s = 1; s <= 40; s++) { if (C.selectTactic(prog, { rng: C.makeRng(s) }).id === target) { hits++; } }
+        assert(hits >= 35, 'the un-mastered, missed puzzle is served (' + hits + '/40)');
+        // belt climbs with mastered count
+        assertEq(C.tacticBelt(0).name, 'White', 'start at White belt');
+        assert(C.tacticBelt(C.TACTICS.length).index >= C.tacticBelt(0).index + 1, 'mastering puzzles climbs the belt');
+        assertEq(C.tacticsMastered(prog), C.TACTICS.length - 1, 'mastered count is right');
+      });
+
+      test('chess: forcesMateInTwo does not flag a mate-in-one', function () {
+        var st = C.parseFEN('6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1');
+        var mate = C.findMove(C.legalMoves(st), C.sqFromAlg('a1'), C.sqFromAlg('a8'));
+        assert(!C.forcesMateInTwo(st, mate), 'an immediate mate is not a forced mate-in-two');
       });
 
       test('chess: the move coach explains good and bad moves', function () {
