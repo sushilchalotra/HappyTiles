@@ -1850,8 +1850,8 @@
     }
 
     /* ---- puzzle (mate-in-one / win-a-piece / fork / best-move) ---- */
-    const GOAL_PROMPT = { mate1: 'Find checkmate in one! ♚', free: 'Win the free piece! ⚡', fork: 'Find the fork! ⚡', solve: 'Find the best move! 🌟' };
-    const GOAL_WIN = { mate1: 'Checkmate! ♚🏆', free: 'You won a piece! 🎉', fork: 'Great fork! 🍴', solve: 'Correct! 🌟' };
+    const GOAL_PROMPT = { mate1: 'Find checkmate in one! ♚', mate2: 'Force checkmate in two! ♚', free: 'Win the free piece! ⚡', fork: 'Find the fork! ⚡', solve: 'Find the best move! 🌟' };
+    const GOAL_WIN = { mate1: 'Checkmate! ♚🏆', mate2: 'Checkmate in two — brilliant! ♚🏆', free: 'You won a piece! 🎉', fork: 'Great fork! 🍴', solve: 'Correct! 🌟' };
     function checkSqOf(st) { const k = C.findKing(st.board, st.turn); return (k >= 0 && C.isInCheck(st, st.turn)) ? k : -1; }
     function hintFromSq(st, L) {
       if (L.solutions && L.solutions.length) { return C.sqFromAlg(L.solutions[0].slice(0, 2)); }
@@ -1872,21 +1872,37 @@
       setStatus(prompt);
       $('#chess-hint').addEventListener('click', function () { view.hintSq = hintFromSq(st, L); paintBoard(); setStatus('Try moving the highlighted piece. 💡'); });
 
+      let phase = 0, busy = false;   // mate-in-two is a two-step puzzle
       function reset() {
-        st = C.cloneState(base);
+        st = C.cloneState(base); phase = 0; busy = false;
         view.board = st.board; view.selected = -1; view.dests = []; view.lastFrom = -1; view.lastTo = -1; view.hintSq = -1; view.checkSq = checkSqOf(st);
         paintBoard(); setStatus(prompt);
       }
+      function applyAndPaint(m) {
+        C.makeMove(st, m); view.lastFrom = m.from; view.lastTo = m.to; view.selected = -1; view.dests = []; view.hintSq = -1; view.checkSq = checkSqOf(st); paintBoard();
+      }
+      function wrong(msg) { Audio.play('error'); setStatus(msg || 'Good try — not quite. Let’s reset…'); window.setTimeout(reset, 1150); }
       function onSq(sq) {
+        if (busy) { return; }
         if (view.selected >= 0 && contains(view.dests, sq)) {
           const m = C.findMove(C.legalMoves(st, view.selected), view.selected, sq);
           if (m) {
-            const solved = C.assessMove(st, L, m);
-            C.makeMove(st, m);
-            view.lastFrom = m.from; view.lastTo = sq; view.selected = -1; view.dests = []; view.hintSq = -1; view.checkSq = checkSqOf(st);
-            paintBoard();
+            if (goal === 'mate2' && phase === 0) {
+              if (C.forcesMateInTwo(st, m)) {
+                applyAndPaint(m); Audio.play('place'); phase = 1; busy = true;
+                setStatus('Yes! Now find checkmate! ♚');
+                window.setTimeout(function () {                       // bot plays its best defence
+                  const reply = C.bestMove(st, 3, Math.random) || C.legalMoves(st)[0];
+                  if (reply) { applyAndPaint(reply); }
+                  busy = false; setStatus('Now checkmate in one! ♚');
+                }, 700);
+              } else { applyAndPaint(m); wrong('Not quite — that doesn’t force mate. Resetting…'); }
+              return;
+            }
+            const solved = (goal === 'mate2') ? C.moveGivesMate(st, m) : C.assessMove(st, L, m);
+            applyAndPaint(m);
             if (solved) { Audio.play('place'); finishLesson(L, GOAL_WIN[goal] || GOAL_WIN.solve, 3); }
-            else { Audio.play('error'); setStatus('Good try — not quite. Let’s reset…'); window.setTimeout(reset, 1100); }
+            else { wrong(); }
           }
           return;
         }

@@ -563,6 +563,12 @@ var runHappyTests = (function () {
           assert(any, label + ': has a mate in one');
           return;
         }
+        if (item.goal === 'mate2') {
+          var any2 = false;
+          for (j = 0; j < moves.length; j++) { if (C.forcesMateInTwo(st, moves[j])) { any2 = true; break; } }
+          assert(any2, label + ': has a forced mate in two');
+          return;
+        }
         if (item.goal === 'promote') {
           var canPromo = false;
           for (j = 0; j < moves.length; j++) { if (C.typeOf(moves[j].piece) === 'P' && C.rankOf(moves[j].to) === (item.goalRank - 1)) { canPromo = true; break; } }

@@ -509,7 +509,8 @@ var ChessCore = (function () {
       { id: 'scholardef', title: 'Stop Scholar’s Mate', type: 'info', tip: 'Don’t fall for it! Watch the f7 square, develop a knight to f6, and you can play …Qe7 or …g6 to defend. Never panic.' },
       { id: 'ladder',    title: 'Two-Rook Ladder', type: 'puzzle', goal: 'mate1', tip: 'One rook guards the row in front; the other gives mate.', fen: '6k1/1R6/8/8/8/8/8/R5K1 w - - 0 1' },
       { id: 'qmate2',    title: 'Queen & King Mate', type: 'puzzle', goal: 'mate1', tip: 'The king supports the queen for checkmate on the edge.', fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1' },
-      { id: 'rmate',     title: 'Rook & King Mate', type: 'puzzle', goal: 'mate1', tip: 'Box the king on the edge — the kings face off and the rook mates.', fen: '4k3/8/4K3/8/8/8/8/R7 w - - 0 1' }
+      { id: 'rmate',     title: 'Rook & King Mate', type: 'puzzle', goal: 'mate1', tip: 'Box the king on the edge — the kings face off and the rook mates.', fen: '4k3/8/4K3/8/8/8/8/R7 w - - 0 1' },
+      { id: 'matein2',   title: 'Mate in Two', type: 'puzzle', goal: 'mate2', tip: 'Two moves to win! Give a check the rook must block, then deliver mate.', fen: '1r4k1/5ppp/8/4Q3/8/8/8/4R1K1 w - - 0 1' }
     ] },
     { id: 'tactics', skill: 'tactics', title: 'Tactics', emoji: '⚡', lessons: [
       { id: 'hang',    title: 'Win a Free Piece', type: 'puzzle', goal: 'free', tip: 'A piece with no defender is FREE — grab it!', fen: 'k7/8/8/4n3/8/8/1B6/K7 w - - 0 1', solutions: ['b2e5'] },
@@ -703,11 +704,15 @@ var ChessCore = (function () {
     // checkmates (verified mate in one)
     { id: 'mt1', motif: 'mate', level: 2, goal: 'mate1', fen: '6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1', tip: 'Back-rank checkmate!' },
     { id: 'mt2', motif: 'mate', level: 2, goal: 'mate1', fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1', tip: 'Walk the queen in for checkmate.' },
-    { id: 'mt3', motif: 'mate', level: 3, goal: 'mate1', fen: '6k1/R4ppp/8/8/8/8/8/6K1 w - - 0 1', tip: 'Deliver mate on the back rank!' }
+    { id: 'mt3', motif: 'mate', level: 3, goal: 'mate1', fen: '6k1/R4ppp/8/8/8/8/8/6K1 w - - 0 1', tip: 'Deliver mate on the back rank!' },
+    // pawn fork, skewer, and win-the-rook (more motifs)
+    { id: 'fk5', motif: 'fork', level: 2, goal: 'solve', fen: '4k3/8/3n1n2/8/4P3/8/8/4K3 w - - 0 1', solutions: ['e4e5'], tip: 'A pawn can fork two pieces at once — push it!' },
+    { id: 'sk1', motif: 'skewer', level: 3, goal: 'solve', fen: '7q/6k1/8/8/8/2B5/8/6K1 w - - 0 1', solutions: ['c3f6'], tip: 'Skewer! Check the king on the diagonal, then win the queen behind it.' },
+    { id: 'wn3', motif: 'win-material', level: 2, goal: 'win', fen: '7k/8/8/3r4/5N2/8/8/K7 w - - 0 1', solutions: ['f4d5'], tip: 'Knight grabs the rook — win material!' }
   ];
 
   // Friendly per-motif name used by the coach when she misses.
-  var MOTIF_NAME = { fork: 'fork', hanging: 'free piece', 'win-material': 'winning capture', mate: 'checkmate' };
+  var MOTIF_NAME = { fork: 'fork', hanging: 'free piece', 'win-material': 'winning capture', mate: 'checkmate', skewer: 'skewer' };
 
   // Adaptive pick: prefer not-yet-mastered puzzles, weight up ones she missed and
   // easier ones, avoid an immediate repeat. progress: id -> { mastered, missed }.
