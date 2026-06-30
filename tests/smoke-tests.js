@@ -602,9 +602,10 @@ var runHappyTests = (function () {
         var none = C.applyChessPlacement({});
         assertEq(none.recommend, 0, 'a true beginner starts at the very first lesson');
         var strong = C.applyChessPlacement({ capture: true, opening: true, check: true, mate1: true, tactics: true, endgame: true });
-        var totalBefore = 0, u;
-        for (u = 0; u < C.CHESS_UNITS.length; u++) { if (C.CHESS_UNITS[u].id === 'play') { break; } totalBefore += C.CHESS_UNITS[u].lessons.length; }
-        assertEq(strong.recommend, totalBefore, 'an expert is sent straight to Play a Game');
+        // She's credited the probed units and sent to the first taught-only unit (Smart Openings).
+        var beforeTaught = 0, u;
+        for (u = 0; u < C.CHESS_UNITS.length; u++) { if (C.CHESS_UNITS[u].id === 'traps') { break; } beforeTaught += C.CHESS_UNITS[u].lessons.length; }
+        assertEq(strong.recommend, beforeTaught, 'an expert still gets the taught-only opening-traps unit');
         var mid = C.applyChessPlacement({ capture: true, mate1: true });
         assert(mid.recommend > 0, 'a mid kid skips the basics');
         assert(mid.stars && mid.knownUnits.length >= 1, 'known units are pre-credited');

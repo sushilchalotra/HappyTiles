@@ -31,9 +31,12 @@ Endgames, and **Coach Mode** — per-move "why" feedback + take-back + optional 
       coach explains misses. Covers **forks, hanging pieces, win-material, mate-in-one**.
       *Still to add:* pin, skewer, discovered attack, double attack, removing the defender,
       and **mate-in-two** (`forcesMateInTwo` is ready for it).
-- [ ] **Checkmate patterns** unit: back-rank, smothered, Scholar's (attack + defense),
-      ladder, Q+K / R+K technique, plus mate-in-two puzzles.
-- [ ] **Opening repertoire + traps**: Italian Game, simple Black defenses, Scholar's-mate trap.
+- [x] ~~**Mate Patterns** unit~~ shipped: smothered, Scholar's, two-rook ladder, Q+K and
+      R+K mates (named mate-in-one shapes; taught-only so never auto-skipped).
+- [x] ~~**Smart Openings / traps** unit~~ shipped: the Italian bishop, and a black-to-move
+      "Defend Scholar's Mate" puzzle.
+- [ ] **Mate-in-two** puzzles (the `forcesMateInTwo` helper + a two-step puzzle runner).
+- [ ] More tactic motifs in the Dojo: pin, skewer, discovered attack, double attack, removing the defender.
 - [ ] **Promotion picker** (choose Q / R / B / N) — currently auto-queens.
 - [ ] Bring the coach's **"why"** into the lesson puzzles too (not just Play-vs-Bot).
 - [ ] **Guided long checkmates**: K+Q vs K and K+R vs K, walked step-by-step (not just mate-in-one).

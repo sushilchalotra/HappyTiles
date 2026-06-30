@@ -490,12 +490,26 @@ var ChessCore = (function () {
       { id: 'develop', title: 'Develop a Knight', type: 'puzzle', goal: 'solve', tip: 'Bring a knight out toward the center.', fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', solutions: ['g1f3', 'b1c3'] },
       { id: 'castle',  title: 'Castle Your King', type: 'puzzle', goal: 'solve', tip: 'Tuck your king safely into the corner — castle!', fen: 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4', solutions: ['e1g1'] }
     ] },
+    { id: 'traps', skill: 'traps', title: 'Smart Openings', emoji: '🦊', lessons: [
+      { id: 'trap-intro', title: 'Play Smart, Avoid Tricks', type: 'info', tip: 'A good opening develops fast and watches for cheap tricks like the f7 attack. Let’s practice!' },
+      { id: 'italian', title: 'The Italian Bishop', type: 'puzzle', goal: 'solve', tip: 'In the Italian Game, the bishop loves c4 — aiming at f7. Put it there!', fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1', solutions: ['f1c4'] },
+      { id: 'defend-f7', title: 'Defend Scholar’s Mate', type: 'puzzle', goal: 'solve', tip: 'You are Black ⚫. The queen threatens mate on f7 — defend it! (…g6 chases the queen, or …Qe7 guards f7.)', fen: 'r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 1', solutions: ['g7g6', 'd8e7'] }
+    ] },
     { id: 'mate', skill: 'mate1', title: 'Check & Checkmate', emoji: '♚', lessons: [
       { id: 'what-check', title: 'What is Check?', type: 'info', tip: 'Check means the king is under attack. You MUST get out of check right away.' },
       { id: 'm1', title: 'Mate in One #1', type: 'puzzle', goal: 'mate1', tip: 'Trap the king on the back row.', fen: '6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1' },
       { id: 'm2', title: 'Mate in One #2', type: 'puzzle', goal: 'mate1', tip: 'Use your king to support the queen.', fen: '6k1/3Q4/6K1/8/8/8/8/8 w - - 0 1' },
       { id: 'm3', title: 'Mate in One #3', type: 'puzzle', goal: 'mate1', tip: 'Two rooks make a ladder — one guards the row in front.', fen: '6k1/1R6/8/8/8/8/8/R5K1 w - - 0 1' },
       { id: 'm4', title: 'Mate in One #4', type: 'puzzle', goal: 'mate1', tip: 'Bring the queen right up close.', fen: '7k/8/6KQ/8/8/8/8/8 w - - 0 1' }
+    ] },
+    { id: 'patterns', skill: 'patterns', title: 'Mate Patterns', emoji: '🎯', lessons: [
+      { id: 'pat-intro', title: 'Famous Mates', type: 'info', tip: 'Strong players know these mating shapes by heart. Learn them and you’ll spot mate in a flash!' },
+      { id: 'smother',   title: 'Smothered Mate', type: 'puzzle', goal: 'mate1', tip: 'The king is boxed in by its own pieces — the knight delivers mate!', fen: '6rk/6pp/8/6N1/8/8/8/7K w - - 0 1' },
+      { id: 'scholar',   title: 'Scholar’s Mate', type: 'puzzle', goal: 'mate1', tip: 'The famous 4-move mate — the queen takes f7, guarded by the bishop.', fen: 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1' },
+      { id: 'scholardef', title: 'Stop Scholar’s Mate', type: 'info', tip: 'Don’t fall for it! Watch the f7 square, develop a knight to f6, and you can play …Qe7 or …g6 to defend. Never panic.' },
+      { id: 'ladder',    title: 'Two-Rook Ladder', type: 'puzzle', goal: 'mate1', tip: 'One rook guards the row in front; the other gives mate.', fen: '6k1/1R6/8/8/8/8/8/R5K1 w - - 0 1' },
+      { id: 'qmate2',    title: 'Queen & King Mate', type: 'puzzle', goal: 'mate1', tip: 'The king supports the queen for checkmate on the edge.', fen: 'k7/8/2K5/8/8/8/8/1Q6 w - - 0 1' },
+      { id: 'rmate',     title: 'Rook & King Mate', type: 'puzzle', goal: 'mate1', tip: 'Box the king on the edge — the kings face off and the rook mates.', fen: '4k3/8/4K3/8/8/8/8/R7 w - - 0 1' }
     ] },
     { id: 'tactics', skill: 'tactics', title: 'Tactics', emoji: '⚡', lessons: [
       { id: 'hang',    title: 'Win a Free Piece', type: 'puzzle', goal: 'free', tip: 'A piece with no defender is FREE — grab it!', fen: 'k7/8/8/4n3/8/8/1B6/K7 w - - 0 1', solutions: ['b2e5'] },
@@ -551,7 +565,9 @@ var ChessCore = (function () {
       pieces: anyApplied,                 // solving any applied puzzle proves she can move
       capture: !!p.capture,
       opening: !!p.opening,
+      traps: false,                        // opening traps are taught, never auto-credited
       mate: !!(p.mate1 || p.check),
+      patterns: false,                     // named mate patterns are taught, never auto-credited
       tactics: !!p.tactics,
       endgame: !!p.endgame,
       play: false                          // always leave "Play a Game" as the open frontier
